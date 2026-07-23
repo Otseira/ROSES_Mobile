@@ -1,0 +1,66 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Internet -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Kamera (foto absensi) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- GPS / Lokasi -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Fitur hardware yang dipakai aplikasi -->
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="true" />
+
+    <application
+        android:name="${applicationName}"
+        android:label="SIRO Mobile"
+        android:icon="@mipmap/ic_launcher">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+
+    <!-- Visibilitas package (wajib di Android 11+ agar bisa mendeteksi app fake GPS) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
+        </intent>
+
+        <!-- Daftar aplikasi Fake GPS populer -->
+        <package android:name="com.fakegps.location" />
+        <package android:name="com.lexa.fakegps" />
+        <package android:name="com.fly.gps" />
+        <package android:name="com.locationchanger" />
+        <package android:name="com.rosteam.gpsemulator" />
+        <package android:name="com.incorporateapps.fakegps.fre" />
+        <package android:name="com.gpslocation.mock" />
+        <package android:name="com.mockgpslocation" />
+        <package android:name="com.gps.emulator" />
+        <package android:name="com.gpsjoystick" />
+    </queries>
+</manifest>
