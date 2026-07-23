@@ -40,4 +40,17 @@ class StorageService {
   static Future<void> clearAll() async {
     await _storage.deleteAll();
   }
+
+  // === Helper generik (untuk flag On-Call, dll) ===
+  static Future<void> write(String key, String value) async {
+    await _storage.write(key: key, value: value);
+  }
+
+  static Future<String?> read(String key) async {
+    return await _storage.read(key: key);
+  }
+
+  static Future<void> remove(String key) async {
+    await _storage.delete(key: key);
+  }
 }
