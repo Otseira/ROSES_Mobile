@@ -2,12 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Sirom</string>
+	<string>SIRO</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,37 +24,6 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>UIApplicationSceneManifest</key>
-	<key>NSCameraUsageDescription</key>
-	<string>Kamera digunakan untuk mengambil foto selfie bukti absensi. Foto hanya diambil langsung dari kamera, tidak dari galeri.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Lokasi digunakan untuk memverifikasi bahwa Anda berada di dalam radius rumah sakit saat absensi.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Lokasi digunakan untuk verifikasi radius absensi.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Diizinkan hanya untuk menyimpan bukti jika diperlukan.</string>
-	<dict>
-		<key>UIApplicationSupportsMultipleScenes</key>
-		<false/>
-		<key>UISceneConfigurations</key>
-		<dict>
-			<key>UIWindowSceneSessionRoleApplication</key>
-			<array>
-				<dict>
-					<key>UISceneClassName</key>
-					<string>UIWindowScene</string>
-					<key>UISceneConfigurationName</key>
-					<string>flutter</string>
-					<key>UISceneDelegateClassName</key>
-					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
-					<key>UISceneStoryboardFile</key>
-					<string>Main</string>
-				</dict>
-			</array>
-		</dict>
-	</dict>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -74,5 +41,19 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+
+	<!-- ===== IZIN (PERMISSION) SIRO ===== -->
+	<key>NSCameraUsageDescription</key>
+	<string>Kamera digunakan untuk mengambil foto selfie sebagai bukti absensi. Foto hanya diambil langsung dari kamera, tidak dari galeri.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Lokasi digunakan untuk memverifikasi bahwa Anda berada di dalam radius rumah sakit saat melakukan absensi.</string>
+
+	<!-- Opsional: lewati pertanyaan ekspor enkripsi saat submit ke App Store (kita hanya pakai HTTPS standar) -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
