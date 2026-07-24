@@ -27,6 +27,14 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
+	<key>NSCameraUsageDescription</key>
+	<string>Kamera digunakan untuk mengambil foto selfie bukti absensi. Foto hanya diambil langsung dari kamera, tidak dari galeri.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Lokasi digunakan untuk memverifikasi bahwa Anda berada di dalam radius rumah sakit saat absensi.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Lokasi digunakan untuk verifikasi radius absensi.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Diizinkan hanya untuk menyimpan bukti jika diperlukan.</string>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
