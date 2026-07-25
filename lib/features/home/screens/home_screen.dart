@@ -7,6 +7,7 @@ import '../../absensi/screens/absensi_screen.dart';
 import '../../lembur/screens/lembur_screen.dart';
 import '../../roster/screens/roster_screen.dart';
 import '../../profile/screens/profile_screen.dart';
+import '../../lembur/screens/validasi_lembur_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -47,7 +48,9 @@ class HomeScreen extends ConsumerWidget {
                         children: [
                           CircleAvatar(
                             radius: 24,
-                            backgroundColor: Colors.white.withValues(alpha: 0.2),
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.2,
+                            ),
                             child: Text(
                               (user?.nama ?? 'U').substring(0, 1).toUpperCase(),
                               style: const TextStyle(
@@ -219,6 +222,22 @@ class HomeScreen extends ConsumerWidget {
                           ),
                         ],
                       ),
+
+                      // ✅ BARIS BARU: hanya untuk atasan
+                      if (user?.canValidasi == true) ...[
+                        const SizedBox(height: 12),
+                        _ActionCard(
+                          icon: Icons.fact_check_outlined,
+                          label: 'Validasi Lembur / On-Call',
+                          color: AppColors.secondary,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ValidasiLemburScreen(),
+                            ),
+                          ),
+                        ),
+                      ],
 
                       // === INFO CARD ===
                       const SizedBox(height: 28),

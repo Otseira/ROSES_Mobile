@@ -45,4 +45,6 @@ class UserModel {
 
   bool get isSuperadmin => role == 'superadmin';
   bool get canAbsen => role != 'superadmin';
+  bool get canValidasi =>
+      role == 'kepala_unit' || role == 'hrd' || role == 'superadmin';
 }
