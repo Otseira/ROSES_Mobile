@@ -1,29 +1,32 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/services/location_service.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/widgets/photo_capture_screen.dart';
 
 class OnCallScreen extends ConsumerStatefulWidget {
   const OnCallScreen({super.key});
-
   @override
   ConsumerState<OnCallScreen> createState() => _OnCallScreenState();
 }
 
 class _OnCallScreenState extends ConsumerState<OnCallScreen> {
   final _ketController = TextEditingController();
+  final _locationService = LocationService();
 
   bool _loading = false;
   bool _isOnCall = false;
-  String? _oncallStart; // waktu mulai (mentah dari server / storage)
+  String? _oncallStart;
   String? _error;
   String? _status;
 
   @override
   void initState() {
     super.initState();
-    _syncFromStorage(); // ✅ pulihkan state kalau app sempat tertutup
+    _syncFromStorage();
   }
 
   @override
@@ -32,10 +35,9 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
     super.dispose();
   }
 
-  // --- helper ---
-  bool _containsAny(String haystack, List<String> needles) {
-    final h = haystack.toLowerCase();
-    return needles.any((n) => h.contains(n.toLowerCase()));
+  bool _containsAny(String h, List<String> needles) {
+    final s = h.toLowerCase();
+    return needles.any((n) => s.contains(n.toLowerCase()));
   }
 
   String _fmtHm(String? s) {
@@ -47,7 +49,6 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
     }
   }
 
-  // --- pulihkan state dari storage saat halaman dibuka ---
   Future<void> _syncFromStorage() async {
     final active = await StorageService.read('oncall_active');
     final start = await StorageService.read('oncall_start');
@@ -63,9 +64,8 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
 
   Future<void> _setActive(String? startRaw) async {
     await StorageService.write('oncall_active', '1');
-    if (startRaw != null && startRaw.isNotEmpty) {
+    if (startRaw != null && startRaw.isNotEmpty)
       await StorageService.write('oncall_start', startRaw);
-    }
     if (!mounted) return;
     setState(() {
       _isOnCall = true;
@@ -85,28 +85,50 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
     });
   }
 
-  // --- Clock-In ---
+  // Ambil foto + verifikasi GPS; return (File, LocationResult) atau null bila batal/gagal
+  Future<(File, dynamic)?> _captureAndVerify(String title) async {
+    final photo = await Navigator.push<File>(
+      context,
+      MaterialPageRoute(builder: (_) => PhotoCaptureScreen(title: title)),
+    );
+    if (photo == null) return null; // user batal
+    final loc = await _locationService.getValidatedLocation();
+    if (!loc.success) {
+      setState(() => _error = loc.error);
+      return null;
+    }
+    return (photo, loc);
+  }
+
   Future<void> _clockIn() async {
     if (_ketController.text.trim().isEmpty) {
       setState(() => _error = 'Keterangan wajib diisi.');
       return;
     }
+
+    final captured = await _captureAndVerify('Foto On-Call Masuk');
+    if (captured == null) return;
+    final (photo, loc) = captured;
+
     setState(() {
       _loading = true;
       _error = null;
     });
-
     try {
       final api = ref.read(apiServiceProvider);
-      final res = await api.post(
+      final res = await api.postMultipart(
         '/lembur/oncall-masuk',
-        data: {'keterangan': _ketController.text.trim()},
+        fields: {
+          'keterangan': _ketController.text.trim(),
+          'latitude': loc.latitude.toString(),
+          'longitude': loc.longitude.toString(),
+        },
+        files: {'foto_masuk': photo},
       );
       if (res['success'] == true) {
         await _setActive(res['data']?['waktu_mulai']?.toString());
       } else {
         final msg = res['message']?.toString() ?? '';
-        // ✅ Self-heal: ternyata sudah ada sesi aktif → masuk mode aktif
         if (_containsAny(msg, [
           'masih memiliki sesi',
           'belum diselesaikan',
@@ -137,27 +159,34 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
     }
   }
 
-  // --- Clock-Out ---
   Future<void> _clockOut() async {
+    final captured = await _captureAndVerify('Foto On-Call Keluar');
+    if (captured == null) return;
+    final (photo, loc) = captured;
+
     setState(() {
       _loading = true;
       _error = null;
     });
-
     try {
       final api = ref.read(apiServiceProvider);
-      final res = await api.post('/lembur/oncall-keluar');
+      final res = await api.postMultipart(
+        '/lembur/oncall-keluar',
+        fields: {
+          'latitude': loc.latitude.toString(),
+          'longitude': loc.longitude.toString(),
+        },
+        files: {'foto_keluar': photo},
+      );
       if (res['success'] == true) {
         await _clearActive();
-        if (mounted) {
+        if (mounted)
           setState(
             () => _status =
                 'On-Call selesai. Total: ${res['data']?['total_jam'] ?? '-'} jam',
           );
-        }
       } else {
         final msg = res['message']?.toString() ?? '';
-        // ✅ Self-heal: sesi sudah tidak ada di server → reset UI
         if (_containsAny(msg, [
           'tidak ditemukan',
           'aktif tidak ditemukan',
@@ -204,7 +233,6 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Status / info
             if (_status != null) ...[
               Container(
                 padding: const EdgeInsets.all(14),
@@ -245,7 +273,6 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
               ),
               const SizedBox(height: 20),
             ],
-
             if (_error != null) ...[
               Container(
                 padding: const EdgeInsets.all(12),
@@ -275,7 +302,6 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
               ),
               const SizedBox(height: 20),
             ],
-
             if (!_isOnCall) ...[
               TextField(
                 controller: _ketController,
@@ -301,7 +327,7 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
                           ),
                         )
                       : const Icon(Icons.login),
-                  label: const Text('Mulai On-Call'),
+                  label: const Text('Mulai On-Call (Foto + Lokasi)'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.error,
                   ),
@@ -329,7 +355,7 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
                           ),
                         )
                       : const Icon(Icons.logout),
-                  label: const Text('Selesaikan On-Call'),
+                  label: const Text('Selesaikan On-Call (Foto + Lokasi)'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.success,
                   ),

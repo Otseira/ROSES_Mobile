@@ -1,18 +1,21 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/services/location_service.dart';
+import '../../../core/widgets/photo_capture_screen.dart';
 import 'oncall_screen.dart';
 
 class LemburScreen extends ConsumerStatefulWidget {
   const LemburScreen({super.key});
-
   @override
   ConsumerState<LemburScreen> createState() => _LemburScreenState();
 }
 
 class _LemburScreenState extends ConsumerState<LemburScreen> {
   final _keteranganController = TextEditingController();
+  final _locationService = LocationService();
   bool _loading = false;
   String? _error;
   String? _waText;
@@ -28,7 +31,6 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
       setState(() => _error = 'Keterangan wajib diisi.');
       return;
     }
-
     setState(() {
       _loading = true;
       _error = null;
@@ -36,10 +38,39 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
     });
 
     try {
+      // 1) Ambil foto selfie (kamera saja)
+      final photo = await Navigator.push<File>(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              const PhotoCaptureScreen(title: 'Foto Lembur Ekstensi'),
+        ),
+      );
+      if (photo == null) {
+        setState(() => _loading = false);
+        return;
+      } // user batal
+
+      // 2) Verifikasi GPS (radius + anti fake-GPS)
+      final loc = await _locationService.getValidatedLocation();
+      if (!loc.success) {
+        setState(() {
+          _error = loc.error;
+          _loading = false;
+        });
+        return;
+      }
+
+      // 3) Kirim multipart
       final api = ref.read(apiServiceProvider);
-      final res = await api.post(
+      final res = await api.postMultipart(
         '/lembur/ekstensi',
-        data: {'keterangan': _keteranganController.text.trim()},
+        fields: {
+          'keterangan': _keteranganController.text.trim(),
+          'latitude': loc.latitude.toString(),
+          'longitude': loc.longitude.toString(),
+        },
+        files: {'foto_masuk': photo},
       );
 
       if (res['success'] == true) {
@@ -48,12 +79,12 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
           'Lembur ekstensi berhasil diajukan!\nTotal: ${res['data']?['total_jam']} jam',
         );
       } else {
-        setState(() => _error = res['message']);
+        setState(() => _error = res['message']?.toString());
       }
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -83,19 +114,12 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Lembur'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      appBar: AppBar(title: const Text('Lembur')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Ekstensi Card
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -146,7 +170,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                     maxLines: 3,
                     decoration: const InputDecoration(
                       labelText: 'Keterangan',
-                      hintText: 'Alasan lembur / pekerjaan yang dilakukan...',
+                      hintText: 'Alasan lembur / pekerjaan...',
                       alignLabelWithHint: true,
                     ),
                   ),
@@ -165,16 +189,13 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                                 color: Colors.white,
                               ),
                             )
-                          : const Text('Ajukan Lembur Ekstensi'),
+                          : const Text('Ajukan (Foto + Verifikasi Lokasi)'),
                     ),
                   ),
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
-
-            // On-Call Card
             GestureDetector(
               onTap: () => Navigator.push(
                 context,
@@ -229,8 +250,6 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                 ),
               ),
             ),
-
-            // Error
             if (_error != null) ...[
               const SizedBox(height: 16),
               Container(
@@ -260,8 +279,6 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                 ),
               ),
             ],
-
-            // WA Text
             if (_waText != null) ...[
               const SizedBox(height: 16),
               Container(

@@ -1,4 +1,4 @@
-package com.example.sirom   // ← GANTI sesuai hasil grep namespace di atas
+package com.ropanasuri.sirom
 
 import android.content.pm.PackageManager
 import android.os.Build
