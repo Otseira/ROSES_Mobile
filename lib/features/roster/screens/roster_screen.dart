@@ -1,9 +1,10 @@
-import 'dart:convert'; // ✅ untuk jsonEncode (mode debug)
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/api_service.dart';
+import 'jadwal_dinas_screen.dart';
 
 class RosterScreen extends ConsumerStatefulWidget {
   const RosterScreen({super.key});
@@ -222,7 +223,19 @@ class _RosterScreenState extends ConsumerState<RosterScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Jadwal Roster')),
+      appBar: AppBar(
+        title: const Text('Jadwal Roster'),
+        actions: [
+          IconButton(
+            tooltip: 'Tabel Jadwal Bulanan',
+            icon: const Icon(Icons.table_view_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const JadwalDinasScreen()),
+            ),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           // Navigasi bulan

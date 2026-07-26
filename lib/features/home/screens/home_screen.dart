@@ -189,7 +189,7 @@ class HomeScreen extends ConsumerWidget {
                           Expanded(
                             child: _ActionCard(
                               icon: Icons.timer_outlined,
-                              label: 'Lembur',
+                              label: 'Lembur/On Call',
                               color: AppColors.info,
                               onTap: () => Navigator.push(
                                 context,
@@ -203,7 +203,7 @@ class HomeScreen extends ConsumerWidget {
                           Expanded(
                             child: _ActionCard(
                               icon: Icons.calendar_month_outlined,
-                              label: 'Roster',
+                              label: 'Jadwal Dinas',
                               color: AppColors.primary,
                               onTap: () => Navigator.push(
                                 context,
