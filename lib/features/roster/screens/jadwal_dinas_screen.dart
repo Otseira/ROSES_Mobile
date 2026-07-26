@@ -17,11 +17,18 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
   String? _error;
   late DateTime _sel = DateTime(DateTime.now().year, DateTime.now().month);
 
-  // ukuran tabel
   static const double _rowH = 46;
-  static const double _colW = 58;
-  static const double _labelW = 150;
+  static const double _colW = 60;
+  static const double _labelW = 152;
   static const Color _line = AppColors.border;
+
+  // palet bermakna
+  Color get _cJadwal => AppColors.primary.withValues(alpha: 0.10);
+  Color get _cLibur =>
+      AppColors.textHint.withValues(alpha: 0.12); // abu = netral
+  Color get _cTepat => AppColors.success.withValues(alpha: 0.16); // hijau
+  Color get _cTelat => AppColors.error.withValues(alpha: 0.14); // merah
+  Color get _cLembur => AppColors.info.withValues(alpha: 0.16); // biru
 
   @override
   void initState() {
@@ -107,23 +114,19 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
           ),
           const Divider(height: 1),
 
-          // legenda
+          // legenda bermakna
           Container(
             color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 6,
               children: [
-                _legendDot(AppColors.error.withValues(alpha: 0.12), 'Libur'),
-                const SizedBox(width: 14),
-                _legendDot(
-                  AppColors.success.withValues(alpha: 0.16),
-                  'Ada Lembur/On-Call',
-                ),
-                const SizedBox(width: 14),
-                _legendDot(
-                  AppColors.primary.withValues(alpha: 0.10),
-                  'Jadwal Shift',
-                ),
+                _legendDot(_cJadwal, 'Jadwal shift'),
+                _legendDot(_cLibur, 'Libur'),
+                _legendDot(_cTepat, 'Tepat waktu'),
+                _legendDot(_cTelat, 'Terlambat'),
+                _legendDot(_cLembur, 'Lembur / On-Call'),
               ],
             ),
           ),
@@ -155,12 +158,14 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // ===== KOLOM LABEL (tetap di kiri) =====
+                        // ===== KOLOM LABEL (tetap) =====
                         Column(
                           children: [
                             _labelCell('Tanggal', header: true),
-                            _labelCell('Jam Masuk', sub: '(ikut jadwal)'),
-                            _labelCell('Jam Keluar', sub: '(ikut jadwal)'),
+                            _labelCell('Jam Masuk', sub: '(jadwal)'),
+                            _labelCell('Jam Keluar', sub: '(jadwal)'),
+                            _labelCell('Absen Masuk', sub: '(aktual)'),
+                            _labelCell('Absen Pulang', sub: '(aktual)'),
                             _labelCell('Lembur/On-Call', sub: 'Masuk'),
                             _labelCell('Lembur/On-Call', sub: 'Keluar'),
                           ],
@@ -171,26 +176,20 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
                             scrollDirection: Axis.horizontal,
                             child: Column(
                               children: [
-                                // baris 0: angka tanggal
+                                // baris 0 — angka tanggal
                                 _buildRow((i) {
                                   final d = _day(i);
                                   final libur = d?['is_libur'] == true;
                                   return _gridCell(
                                     '${d?['tanggal'] ?? (i + 1)}',
                                     bold: true,
-                                    bg: libur
-                                        ? AppColors.error.withValues(
-                                            alpha: 0.06,
-                                          )
-                                        : AppColors.primary.withValues(
-                                            alpha: 0.08,
-                                          ),
+                                    bg: libur ? _cLibur : _cJadwal,
                                     fg: libur
                                         ? AppColors.textHint
                                         : AppColors.textPrimary,
                                   );
                                 }),
-                                // baris 1: jam masuk shift / Libur
+                                // baris 1 — jam masuk JADWAL / Libur
                                 _buildRow((i) {
                                   final d = _day(i);
                                   if (d?['is_libur'] == true)
@@ -199,7 +198,7 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
                                     (d?['jam_masuk'] ?? '-').toString(),
                                   );
                                 }),
-                                // baris 2: jam keluar shift / Libur
+                                // baris 2 — jam keluar JADWAL / Libur
                                 _buildRow((i) {
                                   final d = _day(i);
                                   if (d?['is_libur'] == true)
@@ -208,35 +207,29 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
                                     (d?['jam_keluar'] ?? '-').toString(),
                                   );
                                 }),
-                                // baris 3: lembur/oncall masuk
+                                // baris 3 — ABSEN MASUK aktual (hijau / merah+menit / -)
+                                _buildRow((i) => _absenMasukCell(_day(i))),
+                                // baris 4 — ABSEN PULANG aktual (hijau / -)
+                                _buildRow((i) => _absenPulangCell(_day(i))),
+                                // baris 5 — lembur/oncall masuk
                                 _buildRow((i) {
-                                  final d = _day(i);
-                                  final v = d?['lembur_masuk'];
+                                  final v = _day(i)?['lembur_masuk'];
                                   return _gridCell(
                                     (v ?? '-').toString(),
-                                    bg: v != null
-                                        ? AppColors.success.withValues(
-                                            alpha: 0.14,
-                                          )
-                                        : null,
+                                    bg: v != null ? _cLembur : null,
                                     fg: v != null
-                                        ? AppColors.success
+                                        ? AppColors.info
                                         : AppColors.textHint,
                                   );
                                 }),
-                                // baris 4: lembur/oncall keluar
+                                // baris 6 — lembur/oncall keluar
                                 _buildRow((i) {
-                                  final d = _day(i);
-                                  final v = d?['lembur_keluar'];
+                                  final v = _day(i)?['lembur_keluar'];
                                   return _gridCell(
                                     (v ?? '-').toString(),
-                                    bg: v != null
-                                        ? AppColors.success.withValues(
-                                            alpha: 0.14,
-                                          )
-                                        : null,
+                                    bg: v != null ? _cLembur : null,
                                     fg: v != null
-                                        ? AppColors.success
+                                        ? AppColors.info
                                         : AppColors.textHint,
                                   );
                                 }),
@@ -253,10 +246,44 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
     );
   }
 
-  // satu baris grid = N sel tanggal
-  Widget _buildRow(Widget Function(int i) cellBuilder) {
-    return Row(children: List.generate(_jumlahHari, (i) => cellBuilder(i)));
+  // ---- sel absen masuk: tepat waktu (hijau) / terlambat (merah + "+Xm") / belum (-) ----
+  Widget _absenMasukCell(Map? d) {
+    if (d?['is_libur'] == true) return _gridCell('-', fg: AppColors.textHint);
+    final v = d?['absen_masuk'];
+    if (v == null) return _gridCell('-', fg: AppColors.textHint);
+    final telat = (d?['terlambat_menit'] as int?) ?? 0;
+    if (telat > 0) {
+      return _twoLineCell(
+        v.toString(),
+        '+$telat m',
+        bg: _cTelat,
+        fg: AppColors.error,
+        subFg: AppColors.error,
+      );
+    }
+    return _gridCell(
+      v.toString(),
+      bold: true,
+      bg: _cTepat,
+      fg: AppColors.success,
+    );
   }
+
+  // ---- sel absen pulang: sudah (hijau) / belum (-) ----
+  Widget _absenPulangCell(Map? d) {
+    if (d?['is_libur'] == true) return _gridCell('-', fg: AppColors.textHint);
+    final v = d?['absen_pulang'];
+    if (v == null) return _gridCell('-', fg: AppColors.textHint);
+    return _gridCell(
+      v.toString(),
+      bold: true,
+      bg: _cTepat,
+      fg: AppColors.success,
+    );
+  }
+
+  Widget _buildRow(Widget Function(int i) cellBuilder) =>
+      Row(children: List.generate(_jumlahHari, (i) => cellBuilder(i)));
 
   Widget _gridCell(String text, {bool bold = false, Color? bg, Color? fg}) {
     return Container(
@@ -280,13 +307,54 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
     );
   }
 
+  // sel dua baris (waktu + penanda terlambat)
+  Widget _twoLineCell(
+    String main,
+    String sub, {
+    Color? bg,
+    Color? fg,
+    Color? subFg,
+  }) {
+    return Container(
+      width: _colW,
+      height: _rowH,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        border: Border.all(color: _line, width: 0.5),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            main,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
+          Text(
+            sub,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: subFg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _liburCell() {
     return Container(
       width: _colW,
       height: _rowH,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.08),
+        color: _cLibur,
         border: Border.all(color: _line, width: 0.5),
       ),
       child: const Text(
@@ -294,7 +362,7 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
         style: TextStyle(
           fontSize: 11,
           fontStyle: FontStyle.italic,
-          color: AppColors.error,
+          color: AppColors.textHint,
         ),
       ),
     );
@@ -307,9 +375,7 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: header
-            ? AppColors.primary.withValues(alpha: 0.08)
-            : Colors.white,
+        color: header ? _cJadwal : Colors.white,
         border: Border.all(color: _line, width: 0.5),
       ),
       child: Column(
@@ -338,6 +404,7 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
 
   Widget _legendDot(Color c, String label) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 12,
