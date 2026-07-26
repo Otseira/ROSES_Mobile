@@ -8,6 +8,7 @@ import '../../lembur/screens/lembur_screen.dart';
 import '../../roster/screens/roster_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../lembur/screens/validasi_lembur_screen.dart';
+import '../../../core/widgets/profile_avatar.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -46,19 +47,11 @@ class HomeScreen extends ConsumerWidget {
                       // Greeting
                       Row(
                         children: [
-                          CircleAvatar(
+                          ProfileAvatar(
+                            url: user?.fotoProfil,
+                            name: user?.nama ?? 'U',
                             radius: 24,
-                            backgroundColor: Colors.white.withValues(
-                              alpha: 0.2,
-                            ),
-                            child: Text(
-                              (user?.nama ?? 'U').substring(0, 1).toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                            onDark: true, // ✅ WAJIB: header Home berlatar hijau
                           ),
                           const SizedBox(width: 12),
                           Expanded(

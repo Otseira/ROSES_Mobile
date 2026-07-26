@@ -7,6 +7,7 @@ class UserModel {
   final String? nomorWhatsapp;
   final String? unitKerja;
   final String role;
+  final String? fotoProfil;
 
   UserModel({
     required this.id,
@@ -17,6 +18,7 @@ class UserModel {
     this.nomorWhatsapp,
     this.unitKerja,
     required this.role,
+    this.fotoProfil,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class UserModel {
       nomorWhatsapp: json['nomor_whatsapp'],
       unitKerja: json['unit_kerja'],
       role: json['role'] ?? 'staf',
+      fotoProfil: json['foto_profil'],
     );
   }
 
@@ -41,6 +44,7 @@ class UserModel {
     'nomor_whatsapp': nomorWhatsapp,
     'unit_kerja': unitKerja,
     'role': role,
+    'foto_profil': fotoProfil,
   };
 
   bool get isSuperadmin => role == 'superadmin';

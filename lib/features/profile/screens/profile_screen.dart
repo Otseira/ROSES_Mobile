@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/screens/login_screen.dart';
 import 'edit_profil_screen.dart';
+import '../../../core/widgets/profile_avatar.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -38,17 +39,10 @@ class ProfileScreen extends ConsumerWidget {
           children: [
             Hero(
               tag: 'profile-avatar',
-              child: CircleAvatar(
+              child: ProfileAvatar(
+                url: user?.fotoProfil,
+                name: user?.nama ?? 'U',
                 radius: 44,
-                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                child: Text(
-                  initial,
-                  style: const TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                  ),
-                ),
               ),
             ),
             const SizedBox(height: 16),

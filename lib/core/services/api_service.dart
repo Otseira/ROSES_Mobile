@@ -56,8 +56,11 @@ class ApiService {
     }
   }
 
-    // PUT JSON (untuk edit profil & ganti password)
-  Future<Map<String, dynamic>> put(String endpoint, {Map<String, dynamic>? data}) async {
+  // PUT JSON (untuk edit profil & ganti password)
+  Future<Map<String, dynamic>> put(
+    String endpoint, {
+    Map<String, dynamic>? data,
+  }) async {
     try {
       final response = await _dio.put(endpoint, data: data);
       return response.data;
@@ -82,11 +85,11 @@ class ApiService {
   // POST Multipart (untuk upload foto)
   Future<Map<String, dynamic>> postMultipart(
     String endpoint, {
-    required Map<String, String> fields,
+    Map<String, String>? fields,
     required Map<String, File> files,
   }) async {
     try {
-      final formData = FormData.fromMap(fields);
+      final formData = FormData.fromMap(fields ?? {});
 
       for (final entry in files.entries) {
         formData.files.add(
