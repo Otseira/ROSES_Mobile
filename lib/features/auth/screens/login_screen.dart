@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../../home/screens/home_screen.dart';
+import '../../../core/widgets/instansi_branding.dart';
+import '../../../core/services/storage_service.dart'; // ✅ untuk footer dinamis
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +18,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _loginController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+
+  // ✅ Nama instansi untuk footer (default dulu, diperbarui dari cache)
+  String _footerInstansi = 'RSKB Ropanasuri';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFooterInstansi(); // baca nama instansi dari cache (ditulis oleh InstansiBranding)
+  }
+
+  Future<void> _loadFooterInstansi() async {
+    final nama = await StorageService.read('branding_nama');
+    if (!mounted) return;
+    if (nama != null && nama.trim().isNotEmpty) {
+      setState(() => _footerInstansi = nama.trim());
+    }
+  }
 
   @override
   void dispose() {
@@ -64,39 +83,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(height: size.height * 0.08),
+                SizedBox(height: size.height * 0.06),
 
-                // Logo
-                Center(
-                  child: Container(
-                    width: 88,
-                    height: 88,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.primary, AppColors.primaryLight],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.fingerprint_rounded,
-                      color: Colors.white,
-                      size: 44,
-                    ),
-                  ),
-                ),
+                // ✅ LOGO + NAMA INSTANSI DINAMIS (mengikuti Pengaturan Sistem)
+                //    Otomatis jatuh ke logo bawaan + nama default bila server
+                //    lambat / gagal / belum diatur — login tak pernah kosong.
+                const Center(child: InstansiBranding(logoSize: 96)),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
 
-                // Title
+                // Sapaan (headline). Hapus blok ini bila ingin nama instansi
+                // dari widget menjadi satu-satunya judul.
                 const Text(
                   'Selamat Datang',
                   textAlign: TextAlign.center,
@@ -106,14 +103,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
+                const SizedBox(height: 6),
+                const Text(
                   'Masuk untuk melanjutkan absensi',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 14, color: AppColors.textHint),
                 ),
 
-                const SizedBox(height: 48),
+                const SizedBox(height: 40),
 
                 // Username / NIK
                 TextFormField(
@@ -209,9 +206,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 const SizedBox(height: 24),
 
-                // Footer
+                // ✅ Footer dinamis (nama instansi ikut cache branding)
                 Text(
-                  'SIRO v1.0.0 • RSKB Ropanasuri',
+                  'SIRO v1.0.0 • $_footerInstansi',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 ),
