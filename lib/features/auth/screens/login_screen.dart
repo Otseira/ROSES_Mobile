@@ -211,7 +211,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 // Footer
                 Text(
-                  'SIRO v1.0.0 • RSUD Ropanasuri',
+                  'SIRO v1.0.0 • RSKB Ropanasuri',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 ),
