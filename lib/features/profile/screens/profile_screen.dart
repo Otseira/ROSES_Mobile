@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/screens/login_screen.dart';
+import 'edit_profil_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -11,23 +12,42 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authStateProvider).value;
 
+    // ✅ inisial aman walau user sedang null
+    final nama = user?.nama ?? '';
+    final initial = nama.isNotEmpty ? nama[0].toUpperCase() : 'U';
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Profil')),
+      appBar: AppBar(
+        title: const Text('Profil'),
+        actions: [
+          if (user != null)
+            IconButton(
+              tooltip: 'Edit Profil',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => EditProfilScreen(user: user)),
+              ),
+            ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Avatar
-            CircleAvatar(
-              radius: 44,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-              child: Text(
-                (user?.nama ?? 'U').substring(0, 1).toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
+            Hero(
+              tag: 'profile-avatar',
+              child: CircleAvatar(
+                radius: 44,
+                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ),
@@ -44,7 +64,6 @@ class ProfileScreen extends ConsumerWidget {
 
             const SizedBox(height: 32),
 
-            // Info cards
             _InfoTile(
               icon: Icons.badge_outlined,
               label: 'NIK',
@@ -71,7 +90,26 @@ class ProfileScreen extends ConsumerWidget {
               value: user?.role ?? '-',
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
+
+            // ✅ Tombol penuh menuju edit
+            if (user != null)
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EditProfilScreen(user: user),
+                    ),
+                  ),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit Profil & Ganti Password'),
+                ),
+              ),
+
+            const SizedBox(height: 12),
 
             // Logout
             SizedBox(
@@ -112,7 +150,6 @@ class _InfoTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-
   const _InfoTile({
     required this.icon,
     required this.label,
@@ -133,22 +170,27 @@ class _InfoTile extends StatelessWidget {
         children: [
           Icon(icon, color: AppColors.textHint, size: 20),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(fontSize: 12, color: AppColors.textHint),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textHint,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

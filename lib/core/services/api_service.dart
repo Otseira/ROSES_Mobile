@@ -56,6 +56,16 @@ class ApiService {
     }
   }
 
+    // PUT JSON (untuk edit profil & ganti password)
+  Future<Map<String, dynamic>> put(String endpoint, {Map<String, dynamic>? data}) async {
+    try {
+      final response = await _dio.put(endpoint, data: data);
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   // POST JSON
   Future<Map<String, dynamic>> post(
     String endpoint, {
