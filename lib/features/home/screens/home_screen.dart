@@ -5,7 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../absensi/screens/absensi_screen.dart';
 import '../../lembur/screens/lembur_screen.dart';
-import '../../roster/screens/roster_screen.dart';
+import '../../roster/screens/jadwal_dinas_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../lembur/screens/validasi_lembur_screen.dart';
 import '../../../core/widgets/profile_avatar.dart';
@@ -208,7 +208,7 @@ class HomeScreen extends ConsumerWidget {
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const RosterScreen(),
+                                  builder: (_) => const JadwalDinasScreen(),
                                 ),
                               ),
                             ),
