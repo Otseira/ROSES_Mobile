@@ -221,7 +221,7 @@ class HomeScreen extends ConsumerWidget {
                         const SizedBox(height: 12),
                         _ActionCard(
                           icon: Icons.fact_check_outlined,
-                          label: 'Validasi Lembur / On-Call',
+                          label: 'Validasi Lembur',
                           color: AppColors.secondary,
                           onTap: () => Navigator.push(
                             context,
