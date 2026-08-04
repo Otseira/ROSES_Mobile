@@ -82,7 +82,6 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
     try {
       final picker = ImagePicker();
 
-      // Buka galeri; kompres otomatis agar upload cepat (maks 1024px, kualitas 80)
       final XFile? foto = await picker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 1024,
@@ -90,16 +89,14 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
         imageQuality: 80,
       );
 
-      if (foto == null) return; // user batal memilih foto
+      if (foto == null) return;
 
-      // Upload ke backend
       final api = ApiService();
       final response = await api.postMultipart(
-        '/api/profil/foto',
+        '/profil/foto', // ✅ tanpa prefix /api
         files: {'foto': File(foto.path)},
       );
 
-      // Perbarui avatar langsung dari respons server
       if (response is Map) {
         final data = response['data'];
         if (data is Map && data['foto_url'] != null) {
@@ -125,7 +122,7 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
     try {
       final api = ApiService();
       await api.put(
-        '/api/profil',
+        '/profil', // ✅ tanpa prefix /api
         data: {
           'nama': _namaController.text.trim(),
           'username': _usernameController.text.trim(),
@@ -139,7 +136,6 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
       );
 
       ref.invalidate(authStateProvider);
-
       _showMessage('Profil berhasil diperbarui.');
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -158,7 +154,7 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
     try {
       final api = ApiService();
       await api.put(
-        '/api/profil/password',
+        '/profil/password', // ✅ tanpa prefix /api
         data: {
           'current_password': _currentPassController.text,
           'new_password': _newPassController.text,
@@ -194,7 +190,6 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ============ FOTO PROFIL (GALERI) ============
               Center(
                 child: Stack(
                   clipBehavior: Clip.none,
@@ -239,7 +234,6 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
               ),
               const SizedBox(height: 20),
 
-              // ============ CARD: DATA PROFIL ============
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -342,7 +336,6 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
 
               const SizedBox(height: 20),
 
-              // ============ CARD: GANTI PASSWORD ============
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
