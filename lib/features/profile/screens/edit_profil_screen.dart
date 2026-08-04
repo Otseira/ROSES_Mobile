@@ -105,6 +105,7 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
       }
 
       ref.invalidate(authStateProvider);
+      ref.invalidate(freshProfileProvider);
       _showMessage('Foto profil berhasil diperbarui.');
     } catch (e) {
       _showMessage(e.toString(), isError: true);
@@ -136,6 +137,7 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
       );
 
       ref.invalidate(authStateProvider);
+      ref.invalidate(freshProfileProvider);
       _showMessage('Profil berhasil diperbarui.');
       if (mounted) Navigator.pop(context);
     } catch (e) {

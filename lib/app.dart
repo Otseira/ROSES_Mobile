@@ -14,7 +14,7 @@ class SiroApp extends ConsumerWidget {
     final authState = ref.watch(authStateProvider);
 
     return MaterialApp(
-      title: 'SIRO',
+      title: 'ROSES',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: authState.when(

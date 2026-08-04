@@ -11,7 +11,9 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authStateProvider).value;
+    final storedUser = ref.watch(authStateProvider).value;
+    final freshUser = ref.watch(freshProfileProvider).value;
+    final user = freshUser ?? storedUser;
 
     // ✅ inisial aman walau user sedang null
     final nama = user?.nama ?? '';
