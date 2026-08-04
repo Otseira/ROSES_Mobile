@@ -110,7 +110,7 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icons/siro_logo.png"
+  image_path: "assets/icons/ROSES_APP.png"
   adaptive_icon_background: "#1B5E20"
   remove_alpha_ios: false
   min_sdk_android: 21
