@@ -1,11 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/widgets/custom_button.dart';
 import '../../../core/widgets/custom_text_field.dart';
 import '../../../core/widgets/loading_overlay.dart';
+import '../../../core/widgets/profile_avatar.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -33,8 +37,11 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
 
   bool _loading = false;
   bool _loadingPassword = false;
+  bool _loadingFoto = false;
   bool _showCurrentPass = true;
   bool _showNewPass = true;
+
+  String? _fotoUrl;
 
   @override
   void initState() {
@@ -43,6 +50,7 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
     _usernameController.text = widget.user.username;
     _emailController.text = widget.user.email ?? '';
     _whatsappController.text = widget.user.nomorWhatsapp ?? '';
+    _fotoUrl = widget.user.fotoProfil;
   }
 
   @override
@@ -67,7 +75,48 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
     );
   }
 
-  /// Simpan perubahan profil (nama, username, email, whatsapp)
+  // ============ UPDATE FOTO PROFIL (DARI GALERI) ============
+  Future<void> _ubahFoto() async {
+    setState(() => _loadingFoto = true);
+
+    try {
+      final picker = ImagePicker();
+
+      // Buka galeri; kompres otomatis agar upload cepat (maks 1024px, kualitas 80)
+      final XFile? foto = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+
+      if (foto == null) return; // user batal memilih foto
+
+      // Upload ke backend
+      final api = ApiService();
+      final response = await api.postMultipart(
+        '/api/profil/foto',
+        files: {'foto': File(foto.path)},
+      );
+
+      // Perbarui avatar langsung dari respons server
+      if (response is Map) {
+        final data = response['data'];
+        if (data is Map && data['foto_url'] != null) {
+          setState(() => _fotoUrl = data['foto_url'] as String);
+        }
+      }
+
+      ref.invalidate(authStateProvider);
+      _showMessage('Foto profil berhasil diperbarui.');
+    } catch (e) {
+      _showMessage(e.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() => _loadingFoto = false);
+    }
+  }
+
+  // ============ SIMPAN PROFIL ============
   Future<void> _simpanProfil() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -89,7 +138,6 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
         },
       );
 
-      // Refresh data user di layar profil
       ref.invalidate(authStateProvider);
 
       _showMessage('Profil berhasil diperbarui.');
@@ -101,7 +149,7 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
     }
   }
 
-  /// Ganti password
+  // ============ GANTI PASSWORD ============
   Future<void> _gantiPassword() async {
     if (!(_passwordFormKey.currentState?.validate() ?? false)) return;
 
@@ -140,12 +188,57 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
         elevation: 0,
       ),
       body: LoadingOverlay(
-        isLoading: _loading || _loadingPassword,
+        isLoading: _loading || _loadingPassword || _loadingFoto,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // ============ FOTO PROFIL (GALERI) ============
+              Center(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    ProfileAvatar(
+                      url: _fotoUrl,
+                      name: widget.user.nama,
+                      radius: 44,
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: -4,
+                      child: Material(
+                        color: AppColors.primary,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _loadingFoto ? null : _ubahFoto,
+                          child: const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Icon(
+                              Icons.photo_library_outlined,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Center(
+                child: Text(
+                  'Ketuk ikon untuk memilih foto dari galeri',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
               // ============ CARD: DATA PROFIL ============
               Container(
                 padding: const EdgeInsets.all(16),
