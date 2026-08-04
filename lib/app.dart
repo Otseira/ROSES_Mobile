@@ -53,7 +53,7 @@ class SplashLoading extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const Text(
-              'SIRO',
+              'ROSES',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
