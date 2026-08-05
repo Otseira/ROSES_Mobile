@@ -213,6 +213,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 ),
 
+                const SizedBox(height: 8),
+
+                // ✅ COPYRIGHT
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.copyright,
+                      size: 12,
+                      color: Colors.grey.shade400,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        '${DateTime.now().year} Luthfi Ariesto Prayoga & Teddi Takejo Saogok',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey.shade400,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'IT RSKB ROPANASURI',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: Colors.grey.shade400,
+                    letterSpacing: 0.8,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+
                 SizedBox(height: size.height * 0.04),
               ],
             ),
