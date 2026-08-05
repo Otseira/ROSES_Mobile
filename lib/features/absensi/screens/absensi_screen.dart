@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:camera/camera.dart';
@@ -22,6 +24,12 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
   bool _cameraReady = false;
   bool _processing = false;
   String? _error;
+  String _status = ''; // ✅ NEW: status bertahap
+
+  // ✅ NEW: State untuk pre-validasi GPS (berjalan di background)
+  Future<dynamic>? _locFuture;
+  DateTime? _locStartedAt;
+  dynamic _locResult;
 
   bool get isMasuk => widget.type == 'masuk';
 
@@ -29,41 +37,100 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
   void initState() {
     super.initState();
     _initCamera();
+    _startLocationPreValidation(); // ✅ NEW: GPS + anti-mock jalan di background
   }
 
   Future<void> _initCamera() async {
     try {
       await _cameraService.init(frontCamera: true);
-      setState(() => _cameraReady = true);
+      if (mounted) setState(() => _cameraReady = true);
     } catch (e) {
-      setState(() => _error = 'Gagal membuka kamera.');
+      if (mounted) setState(() => _error = 'Gagal membuka kamera.');
     }
   }
 
+  /// ✅ NEW: Mulai validasi GPS di background saat layar dibuka
+  /// Saat user membidik wajah (3-5 detik), validasi sudah selesai duluan
+  void _startLocationPreValidation() {
+    _locStartedAt = DateTime.now();
+    _locFuture = _locationService.getValidatedLocation().then((result) {
+      _locResult = result;
+      return result;
+    });
+  }
+
+  /// ✅ NEW: Ambil hasil lokasi — pakai pre-validasi jika masih segar (< 90 detik)
+  Future<dynamic> _getFastLocation() async {
+    // Jika pre-validasi masih segar, pakai hasilnya langsung
+    if (_locFuture != null &&
+        _locStartedAt != null &&
+        DateTime.now().difference(_locStartedAt!) <
+            const Duration(seconds: 90)) {
+      return _locResult ?? await _locFuture!;
+    }
+    // Jika sudah basi (user lama di layar), validasi ulang
+    _startLocationPreValidation();
+    return await _locFuture!;
+  }
+
+  /// ✅ NEW: Kompres foto (3-5MB → ±150KB) agar upload super cepat
+  Future<File> _compressFoto(String sourcePath) async {
+    final target =
+        '${Directory.systemTemp.path}/absen_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+    try {
+      final result = await FlutterImageCompress.compressAndGetFile(
+        sourcePath,
+        target,
+        minWidth: 720, // cukup jelas untuk verifikasi
+        quality: 65,
+      );
+
+      // ✅ PERBAIKAN: XFile dikonversi dulu menjadi File
+      if (result != null) {
+        return File(result.path);
+      }
+      return File(sourcePath); // fallback jika hasil null
+    } catch (_) {
+      return File(sourcePath); // fallback jika kompresi gagal
+    }
+  }
+
+  /// ✅ UPDATED: Submit dengan alur paralel + kompres + status bertahap
   Future<void> _submitAbsensi() async {
     if (_processing) return;
     setState(() {
       _processing = true;
       _error = null;
+      _status = 'Mengambil foto…'; // 1/4
     });
 
     try {
-      // 1. Capture photo (KAMERA ONLY)
+      // 1. Capture photo
       final photo = await _cameraService.capture();
 
-      // 2. Get validated location (ANTI SPOOF)
-      final loc = await _locationService.getValidatedLocation();
+      // 2. Kompres foto (cepat, ±0.3 detik)
+      if (mounted) setState(() => _status = 'Mengoptimalkan foto…'); // 2/4
+      final compressed = await _compressFoto(photo.path);
+
+      // 3. Lokasi — biasanya SUDAH SELESAI karena pre-validasi
+      if (mounted) setState(() => _status = 'Memverifikasi lokasi…'); // 3/4
+      final loc = await _getFastLocation();
 
       if (!loc.success) {
-        setState(() {
-          _error = loc.error;
-          _processing = false;
-        });
-        if (loc.isMocked) _showMockDialog(loc.mockDetails);
+        if (mounted) {
+          setState(() {
+            _error = loc.error;
+            _processing = false;
+            _status = '';
+          });
+          if (loc.isMocked) _showMockDialog(loc.mockDetails);
+        }
         return;
       }
 
-      // 3. Send to API
+      // 4. Kirim ke server (foto kecil → upload < 1 detik)
+      if (mounted) setState(() => _status = 'Mengirim absensi…'); // 4/4
       final api = ref.read(apiServiceProvider);
       final endpoint = isMasuk ? '/absensi/masuk' : '/absensi/pulang';
 
@@ -73,22 +140,28 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
           'latitude': loc.latitude.toString(),
           'longitude': loc.longitude.toString(),
         },
-        files: {'foto': photo},
+        files: {'foto': compressed}, // ✅ pakai foto ter-kompresi
       );
 
       if (response['success'] == true) {
         _showSuccess(response);
       } else {
-        setState(() {
-          _error = response['message'] ?? 'Absensi gagal.';
-          _processing = false;
-        });
+        if (mounted) {
+          setState(() {
+            _error = response['message'] ?? 'Absensi gagal.';
+            _processing = false;
+            _status = '';
+          });
+        }
       }
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _processing = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _processing = false;
+          _status = '';
+        });
+      }
     }
   }
 
@@ -307,6 +380,57 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                       ),
                     ),
                   ),
+
+                  // ✅ NEW: Loading overlay dengan status bertahap
+                  if (_processing)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      child: Center(
+                        child: Card(
+                          color: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 32,
+                              vertical: 28,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(
+                                  width: 40,
+                                  height: 40,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 3,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _status,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Mohon tunggu sebentar',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textHint,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -321,12 +445,12 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // GPS Status
+                  // GPS Status (real-time check)
                   _buildGpsIndicator(),
                   const SizedBox(height: 16),
 
                   // Error
-                  if (_error != null) ...[
+                  if (_error != null && !_processing) ...[
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
@@ -365,20 +489,9 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                       onPressed: (_cameraReady && !_processing)
                           ? _submitAbsensi
                           : null,
-                      icon: _processing
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.camera_alt_rounded, size: 22),
+                      icon: const Icon(Icons.camera_alt_rounded, size: 22),
                       label: Text(
-                        _processing
-                            ? 'Memproses...'
-                            : 'Foto & ${isMasuk ? "Absen Masuk" : "Absen Pulang"}',
+                        'Foto & ${isMasuk ? "Absen Masuk" : "Absen Pulang"}',
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isMasuk
