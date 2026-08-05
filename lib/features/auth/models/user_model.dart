@@ -65,7 +65,10 @@ class UserModel {
   bool get canAbsen => role != 'superadmin';
 
   bool get canValidasi =>
-      role == 'kepala_unit' || role == 'hrd' || role == 'superadmin';
+      role == 'kepala_unit' ||
+      role == 'penanggung_jawab' ||
+      role == 'hrd' ||
+      role == 'superadmin';
 
   // Role Manajemen (bisa kelola multi-unit)
   bool get isManajemen =>

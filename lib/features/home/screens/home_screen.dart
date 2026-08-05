@@ -15,8 +15,11 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authStateProvider);
-    final user = authState.value;
+    // ✅ PERBAIKAN: ambil user terbaru dari server agar role ikut berubah
+    final storedUser = ref.watch(authStateProvider).value;
+    final freshUser = ref.watch(freshProfileProvider).value;
+    final user = freshUser ?? storedUser;
+
     final now = DateTime.now();
     final dateFormat = DateFormat('EEEE, d MMMM yyyy', 'id_ID');
 
@@ -24,7 +27,10 @@ class HomeScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: () => ref.refresh(authStateProvider.future),
+          onRefresh: () async {
+            ref.invalidate(authStateProvider);
+            ref.invalidate(freshProfileProvider);
+          },
           child: CustomScrollView(
             slivers: [
               // === HEADER ===
@@ -51,7 +57,7 @@ class HomeScreen extends ConsumerWidget {
                             url: user?.fotoProfil,
                             name: user?.nama ?? 'U',
                             radius: 24,
-                            onDark: true, // ✅ WAJIB: header Home berlatar hijau
+                            onDark: true,
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -216,19 +222,29 @@ class HomeScreen extends ConsumerWidget {
                         ],
                       ),
 
-                      // ✅ BARIS BARU: hanya untuk atasan
+                      // ✅ PERBAIKAN: Validasi Lembur — pakai Row + Expanded agar icon seragam
                       if (user?.canValidasi == true) ...[
                         const SizedBox(height: 12),
-                        _ActionCard(
-                          icon: Icons.fact_check_outlined,
-                          label: 'Validasi Lembur',
-                          color: AppColors.secondary,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ValidasiLemburScreen(),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _ActionCard(
+                                icon: Icons.fact_check_outlined,
+                                label: 'Validasi Lembur',
+                                color: AppColors.secondary,
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ValidasiLemburScreen(),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 12),
+                            // Placeholder kosong agar layout tetap 2 kolom & simetris
+                            const Expanded(child: SizedBox.shrink()),
+                          ],
                         ),
                       ],
 

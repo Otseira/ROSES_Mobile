@@ -15,9 +15,8 @@ class ProfileScreen extends ConsumerWidget {
     final freshUser = ref.watch(freshProfileProvider).value;
     final user = freshUser ?? storedUser;
 
-    // ✅ inisial aman walau user sedang null
+    // ✅ PERBAIKAN: hapus variabel 'initial' yang tidak terpakai
     final nama = user?.nama ?? '';
-    final initial = nama.isNotEmpty ? nama[0].toUpperCase() : 'U';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -43,7 +42,7 @@ class ProfileScreen extends ConsumerWidget {
               tag: 'profile-avatar',
               child: ProfileAvatar(
                 url: user?.fotoProfil,
-                name: user?.nama ?? 'U',
+                name: nama.isEmpty ? 'U' : nama,
                 radius: 44,
               ),
             ),
@@ -88,7 +87,7 @@ class ProfileScreen extends ConsumerWidget {
 
             const SizedBox(height: 24),
 
-            // ✅ Tombol penuh menuju edit
+            // Tombol penuh menuju edit
             if (user != null)
               SizedBox(
                 width: double.infinity,
