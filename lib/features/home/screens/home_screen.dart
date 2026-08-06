@@ -241,34 +241,32 @@ class HomeScreen extends ConsumerWidget {
                           ),
                           const SizedBox(width: 12),
                           const Expanded(child: SizedBox.shrink()),
-                        ],
-                      ),
-
-                      // ✅ PERBAIKAN: Validasi Lembur — pakai Row + Expanded agar icon seragam
-                      if (user?.canValidasi == true) ...[
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _ActionCard(
-                                icon: Icons.fact_check_outlined,
-                                label: 'Validasi Lembur',
-                                color: AppColors.secondary,
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const ValidasiLemburScreen(),
+                          if (user?.canValidasi == true) ...[
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _ActionCard(
+                                    icon: Icons.fact_check_outlined,
+                                    label: 'Validasi Lembur',
+                                    color: AppColors.secondary,
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const ValidasiLemburScreen(),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
+                                const SizedBox(width: 12),
+                                // Placeholder kosong agar layout tetap 2 kolom & simetris
+                                const Expanded(child: SizedBox.shrink()),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            // Placeholder kosong agar layout tetap 2 kolom & simetris
-                            const Expanded(child: SizedBox.shrink()),
                           ],
-                        ),
-                      ],
+                        ],
+                      ),
 
                       // === INFO CARD ===
                       const SizedBox(height: 28),
