@@ -9,6 +9,7 @@ import '../../roster/screens/jadwal_dinas_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../lembur/screens/validasi_lembur_screen.dart';
 import '../../../core/widgets/profile_avatar.dart';
+import '../../absensi/screens/absensi_luar_jadwal_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -219,6 +220,27 @@ class HomeScreen extends ConsumerWidget {
                               ),
                             ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _ActionCard(
+                              icon: Icons.swap_horizontal_circle_outlined,
+                              label: 'Absensi Luar Jadwal',
+                              color: AppColors.warning,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const AbsensiLuarJadwalScreen(),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(child: SizedBox.shrink()),
                         ],
                       ),
 

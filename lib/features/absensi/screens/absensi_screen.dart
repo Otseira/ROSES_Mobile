@@ -11,7 +11,8 @@ import '../../../core/services/api_service.dart';
 
 class AbsensiScreen extends ConsumerStatefulWidget {
   final String type; // 'masuk' | 'pulang'
-  const AbsensiScreen({super.key, required this.type});
+  final String mode; // 'normal' | 'luar_jadwal'
+  const AbsensiScreen({super.key, required this.type, this.mode = 'normal'});
 
   @override
   ConsumerState<AbsensiScreen> createState() => _AbsensiScreenState();
@@ -24,20 +25,20 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
   bool _cameraReady = false;
   bool _processing = false;
   String? _error;
-  String _status = ''; // ✅ NEW: status bertahap
+  String _status = '';
 
-  // ✅ NEW: State untuk pre-validasi GPS (berjalan di background)
   Future<dynamic>? _locFuture;
   DateTime? _locStartedAt;
   dynamic _locResult;
 
   bool get isMasuk => widget.type == 'masuk';
+  bool get isLuarJadwal => widget.mode == 'luar_jadwal'; // ✅ NEW
 
   @override
   void initState() {
     super.initState();
     _initCamera();
-    _startLocationPreValidation(); // ✅ NEW: GPS + anti-mock jalan di background
+    _startLocationPreValidation();
   }
 
   Future<void> _initCamera() async {
@@ -49,8 +50,6 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
     }
   }
 
-  /// ✅ NEW: Mulai validasi GPS di background saat layar dibuka
-  /// Saat user membidik wajah (3-5 detik), validasi sudah selesai duluan
   void _startLocationPreValidation() {
     _locStartedAt = DateTime.now();
     _locFuture = _locationService.getValidatedLocation().then((result) {
@@ -59,21 +58,17 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
     });
   }
 
-  /// ✅ NEW: Ambil hasil lokasi — pakai pre-validasi jika masih segar (< 90 detik)
   Future<dynamic> _getFastLocation() async {
-    // Jika pre-validasi masih segar, pakai hasilnya langsung
     if (_locFuture != null &&
         _locStartedAt != null &&
         DateTime.now().difference(_locStartedAt!) <
             const Duration(seconds: 90)) {
       return _locResult ?? await _locFuture!;
     }
-    // Jika sudah basi (user lama di layar), validasi ulang
     _startLocationPreValidation();
     return await _locFuture!;
   }
 
-  /// ✅ NEW: Kompres foto (3-5MB → ±150KB) agar upload super cepat
   Future<File> _compressFoto(String sourcePath) async {
     final target =
         '${Directory.systemTemp.path}/absen_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -82,39 +77,34 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
       final result = await FlutterImageCompress.compressAndGetFile(
         sourcePath,
         target,
-        minWidth: 720, // cukup jelas untuk verifikasi
+        minWidth: 720,
         quality: 65,
       );
 
-      // ✅ PERBAIKAN: XFile dikonversi dulu menjadi File
       if (result != null) {
         return File(result.path);
       }
-      return File(sourcePath); // fallback jika hasil null
+      return File(sourcePath);
     } catch (_) {
-      return File(sourcePath); // fallback jika kompresi gagal
+      return File(sourcePath);
     }
   }
 
-  /// ✅ UPDATED: Submit dengan alur paralel + kompres + status bertahap
   Future<void> _submitAbsensi() async {
     if (_processing) return;
     setState(() {
       _processing = true;
       _error = null;
-      _status = 'Mengambil foto…'; // 1/4
+      _status = 'Mengambil foto…';
     });
 
     try {
-      // 1. Capture photo
       final photo = await _cameraService.capture();
 
-      // 2. Kompres foto (cepat, ±0.3 detik)
-      if (mounted) setState(() => _status = 'Mengoptimalkan foto…'); // 2/4
+      if (mounted) setState(() => _status = 'Mengoptimalkan foto…');
       final compressed = await _compressFoto(photo.path);
 
-      // 3. Lokasi — biasanya SUDAH SELESAI karena pre-validasi
-      if (mounted) setState(() => _status = 'Memverifikasi lokasi…'); // 3/4
+      if (mounted) setState(() => _status = 'Memverifikasi lokasi…');
       final loc = await _getFastLocation();
 
       if (!loc.success) {
@@ -129,8 +119,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
         return;
       }
 
-      // 4. Kirim ke server (foto kecil → upload < 1 detik)
-      if (mounted) setState(() => _status = 'Mengirim absensi…'); // 4/4
+      if (mounted) setState(() => _status = 'Mengirim absensi…');
       final api = ref.read(apiServiceProvider);
       final endpoint = isMasuk ? '/absensi/masuk' : '/absensi/pulang';
 
@@ -139,13 +128,24 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
         fields: {
           'latitude': loc.latitude.toString(),
           'longitude': loc.longitude.toString(),
+          'mode': widget.mode, // ✅ kirim mode
         },
-        files: {'foto': compressed}, // ✅ pakai foto ter-kompresi
+        files: {'foto': compressed},
       );
 
       if (response['success'] == true) {
         _showSuccess(response);
       } else {
+        // ✅ NEW: Tangani kode khusus OUTSIDE_WINDOW
+        if (response['code'] == 'OUTSIDE_WINDOW' && mounted) {
+          _showOutsideWindowDialog(response['message'] ?? '');
+          setState(() {
+            _processing = false;
+            _status = '';
+          });
+          return;
+        }
+
         if (mounted) {
           setState(() {
             _error = response['message'] ?? 'Absensi gagal.';
@@ -163,6 +163,70 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
         });
       }
     }
+  }
+
+  // ✅ NEW: Dialog saat user di luar jendela shift (mode normal)
+  void _showOutsideWindowDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(
+          Icons.access_time_filled,
+          color: AppColors.warning,
+          size: 48,
+        ),
+        title: const Text(
+          'Di Luar Jam Jadwal Dinas',
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.warning.withValues(alpha: 0.3),
+                ),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: AppColors.warning, size: 18),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Silakan kembali ke Beranda, lalu buka menu "Absensi Luar Jadwal".',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context); // kembali ke home
+            },
+            child: const Text('Kembali ke Beranda'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showMockDialog(Map<String, bool>? details) {
@@ -220,15 +284,20 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
     );
   }
 
+  // ✅ UPDATED: Dialog sukses dengan support luar_jadwal
   void _showSuccess(Map<String, dynamic> response) {
+    final data = response['data'] as Map<String, dynamic>?;
+    final jenisAbsen = data?['jenis_absen'] as String?;
+    final isLuar = jenisAbsen == 'luar_jadwal';
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        icon: const Icon(
+        icon: Icon(
           Icons.check_circle,
-          color: AppColors.success,
+          color: isLuar ? AppColors.warning : AppColors.success,
           size: 56,
         ),
         title: Text(
@@ -238,30 +307,84 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(response['message'] ?? '', textAlign: TextAlign.center),
+            // ✅ NEW: Badge luar jadwal
+            if (isLuar) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.swap_horizontal_circle_outlined,
+                      color: AppColors.warning,
+                      size: 16,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'LUAR JADWAL',
+                      style: TextStyle(
+                        color: AppColors.warning,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Text(
+              response['message'] ?? '',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13),
+            ),
             const SizedBox(height: 12),
-            if (response['data']?['status_kehadiran'] != null)
+            if (data?['status_kehadiran'] != null)
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: response['data']['status_kehadiran'] == 'Terlambat'
+                  color: data!['status_kehadiran'] == 'Terlambat'
                       ? AppColors.warning.withValues(alpha: 0.1)
                       : AppColors.success.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  response['data']['status_kehadiran'],
+                  data['status_kehadiran'],
                   style: TextStyle(
-                    color: response['data']['status_kehadiran'] == 'Terlambat'
+                    color: data['status_kehadiran'] == 'Terlambat'
                         ? AppColors.warning
                         : AppColors.success,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
+            // ✅ NEW: Info tambahan untuk luar jadwal
+            if (isLuar) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Absensi ini tetap sah dan tercatat sebagai absen biasa dalam laporan.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -312,7 +435,6 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                     right: 16,
                     child: Row(
                       children: [
-                        // Back button
                         GestureDetector(
                           onTap: () => Navigator.pop(context),
                           child: Container(
@@ -330,26 +452,47 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                           ),
                         ),
                         const Spacer(),
-                        // Label
+                        // ✅ UPDATED: Label badge dengan support luar_jadwal
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: isMasuk
-                                ? AppColors.success
-                                : AppColors.secondary,
+                            color: isLuarJadwal
+                                ? AppColors.warning
+                                : (isMasuk
+                                      ? AppColors.success
+                                      : AppColors.secondary),
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: Text(
-                            isMasuk ? 'ABSEN MASUK' : 'ABSEN PULANG',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isLuarJadwal) ...[
+                                const Icon(
+                                  Icons.swap_horizontal_circle_outlined,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(
+                                isLuarJadwal
+                                    ? (isMasuk
+                                          ? 'MASUK (LUAR JADWAL)'
+                                          : 'PULANG (LUAR JADWAL)')
+                                    : (isMasuk
+                                          ? 'ABSEN MASUK'
+                                          : 'ABSEN PULANG'),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -364,7 +507,9 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.5),
+                          color: isLuarJadwal
+                              ? AppColors.warning.withValues(alpha: 0.7)
+                              : Colors.white.withValues(alpha: 0.5),
                           width: 2,
                         ),
                       ),
@@ -381,7 +526,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                     ),
                   ),
 
-                  // ✅ NEW: Loading overlay dengan status bertahap
+                  // Loading overlay
                   if (_processing)
                     Container(
                       color: Colors.black.withValues(alpha: 0.7),
@@ -445,7 +590,43 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // GPS Status (real-time check)
+                  // ✅ NEW: Banner info untuk mode luar jadwal
+                  if (isLuarJadwal) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.warning.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: AppColors.warning,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Mode Luar Jadwal — Absensi tetap SAH tanpa dihitung terlambat.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // GPS Status
                   _buildGpsIndicator(),
                   const SizedBox(height: 16),
 
@@ -491,12 +672,16 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                           : null,
                       icon: const Icon(Icons.camera_alt_rounded, size: 22),
                       label: Text(
-                        'Foto & ${isMasuk ? "Absen Masuk" : "Absen Pulang"}',
+                        isLuarJadwal
+                            ? 'Foto & ${isMasuk ? "Absen Masuk" : "Absen Pulang"} (Luar Jadwal)'
+                            : 'Foto & ${isMasuk ? "Absen Masuk" : "Absen Pulang"}',
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isMasuk
-                            ? AppColors.success
-                            : AppColors.secondary,
+                        backgroundColor: isLuarJadwal
+                            ? AppColors.warning
+                            : (isMasuk
+                                  ? AppColors.success
+                                  : AppColors.secondary),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
