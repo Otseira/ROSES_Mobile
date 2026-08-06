@@ -16,7 +16,6 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ✅ PERBAIKAN: ambil user terbaru dari server agar role ikut berubah
     final storedUser = ref.watch(authStateProvider).value;
     final freshUser = ref.watch(freshProfileProvider).value;
     final user = freshUser ?? storedUser;
@@ -51,7 +50,6 @@ class HomeScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Greeting
                       Row(
                         children: [
                           ProfileAvatar(
@@ -99,7 +97,6 @@ class HomeScreen extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 20),
-                      // Date
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -148,6 +145,8 @@ class HomeScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
+
+                      // ✅ ROW 1: Absen Masuk | Absen Pulang
                       Row(
                         children: [
                           Expanded(
@@ -191,6 +190,8 @@ class HomeScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
+
+                      // ✅ ROW 2: Lembur/On Call | Jadwal Dinas
                       Row(
                         children: [
                           Expanded(
@@ -222,7 +223,10 @@ class HomeScreen extends ConsumerWidget {
                           ),
                         ],
                       ),
+
                       const SizedBox(height: 12),
+
+                      // ✅ ROW 3: Absensi Luar Jadwal | Validasi Lembur (jika ada hak akses)
                       Row(
                         children: [
                           Expanded(
@@ -240,13 +244,9 @@ class HomeScreen extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          const Expanded(child: SizedBox.shrink()),
-                          if (user?.canValidasi == true) ...[
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _ActionCard(
+                          Expanded(
+                            child: (user?.canValidasi == true)
+                                ? _ActionCard(
                                     icon: Icons.fact_check_outlined,
                                     label: 'Validasi Lembur',
                                     color: AppColors.secondary,
@@ -257,14 +257,9 @@ class HomeScreen extends ConsumerWidget {
                                             const ValidasiLemburScreen(),
                                       ),
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                // Placeholder kosong agar layout tetap 2 kolom & simetris
-                                const Expanded(child: SizedBox.shrink()),
-                              ],
-                            ),
-                          ],
+                                  )
+                                : const SizedBox.shrink(), // ✅ Placeholder ukuran sama (kosong)
+                          ),
                         ],
                       ),
 
@@ -356,6 +351,7 @@ class _ActionCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               label,
+              textAlign: TextAlign.center, // ✅ agar teks panjang tetap rapi
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
