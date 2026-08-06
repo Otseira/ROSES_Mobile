@@ -26,6 +26,7 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
   final _formKey = GlobalKey<FormState>();
   final _passwordFormKey = GlobalKey<FormState>();
 
+  final _nikController = TextEditingController();
   final _namaController = TextEditingController();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -46,6 +47,7 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
   @override
   void initState() {
     super.initState();
+    _nikController.text = widget.user.nik;
     _namaController.text = widget.user.nama;
     _usernameController.text = widget.user.username;
     _emailController.text = widget.user.email ?? '';
@@ -55,6 +57,7 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
 
   @override
   void dispose() {
+    _nikController.dispose();
     _namaController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
@@ -123,8 +126,11 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
     try {
       final api = ApiService();
       await api.put(
-        '/profil', // ✅ tanpa prefix /api
+        '/profil',
         data: {
+          'nik': _nikController.text.trim().isEmpty
+              ? null
+              : _nikController.text.trim(),
           'nama': _namaController.text.trim(),
           'username': _usernameController.text.trim(),
           'email': _emailController.text.trim().isEmpty
@@ -255,6 +261,22 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
                         ),
+                      ),
+                      const SizedBox(height: 16),
+                      CustomTextField(
+                        controller: _nikController,
+                        label: 'NIK (Opsional)',
+                        hint: 'Masukkan NIK Anda',
+                        prefixIcon: Icons.badge_outlined,
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value != null &&
+                              value.trim().isNotEmpty &&
+                              value.trim().length > 20) {
+                            return 'NIK maksimal 20 karakter';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 16),
                       CustomTextField(
