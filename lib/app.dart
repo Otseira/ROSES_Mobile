@@ -11,19 +11,25 @@ class SiroApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authStateProvider);
+    // ✅ Gunakan authNotifierProvider (StateNotifier) agar reaktif ke perubahan logout/login
+    final authState = ref.watch(authNotifierProvider);
 
     return MaterialApp(
       title: 'ROSES',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: authState.when(
-        data: (user) => user != null ? const HomeScreen() : const LoginScreen(),
-        loading: () => const SplashLoading(),
-        error: (_, __) => const LoginScreen(),
-      ),
+      home: _buildHome(authState),
       routes: AppRoutes.routes,
     );
+  }
+
+  Widget _buildHome(AuthState authState) {
+    if (authState.isLoading) {
+      return const SplashLoading();
+    }
+
+    // Jika ada user di state → tampilkan Home, jika tidak → Login
+    return authState.user != null ? const HomeScreen() : const LoginScreen();
   }
 }
 

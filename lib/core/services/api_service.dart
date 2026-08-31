@@ -31,10 +31,10 @@ class ApiService {
           }
           handler.next(options);
         },
-        onError: (error, handler) {
+        onError: (error, handler) async {
           if (error.response?.statusCode == 401) {
-            // Token expired
-            StorageService.clearAll();
+            // ✅ FIX: await clearAll agar data benar-benar terhapus sebelum lanjut
+            await StorageService.clearAll();
           }
           handler.next(error);
         },
@@ -43,7 +43,6 @@ class ApiService {
   }
 
   // GET
-  // GET (dengan dukungan query parameter)
   Future<Map<String, dynamic>> get(
     String endpoint, {
     Map<String, dynamic>? query,

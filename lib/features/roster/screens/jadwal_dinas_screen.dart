@@ -22,13 +22,11 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
   static const double _labelW = 152;
   static const Color _line = AppColors.border;
 
-  // palet bermakna
   Color get _cJadwal => AppColors.primary.withValues(alpha: 0.10);
-  Color get _cLibur =>
-      AppColors.textHint.withValues(alpha: 0.12); // abu = netral
-  Color get _cTepat => AppColors.success.withValues(alpha: 0.16); // hijau
-  Color get _cTelat => AppColors.error.withValues(alpha: 0.14); // merah
-  Color get _cLembur => AppColors.info.withValues(alpha: 0.16); // biru
+  Color get _cLibur => AppColors.textHint.withValues(alpha: 0.12);
+  Color get _cTepat => AppColors.success.withValues(alpha: 0.16);
+  Color get _cTelat => AppColors.error.withValues(alpha: 0.14);
+  Color get _cLembur => AppColors.info.withValues(alpha: 0.16);
 
   @override
   void initState() {
@@ -76,177 +74,176 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Jadwal Dinas Bulanan')),
-      body: Column(
-        children: [
-          // navigasi bulan
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: () => _change(-1),
-                  icon: const Icon(
-                    Icons.chevron_left,
-                    color: AppColors.primary,
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    monthLabel[0].toUpperCase() + monthLabel.substring(1),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+      // ✅ FIX: Bungkus dengan RefreshIndicator agar user bisa pull-to-refresh
+      body: RefreshIndicator(
+        onRefresh: _fetch,
+        child: Column(
+          children: [
+            // navigasi bulan
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => _change(-1),
+                    icon: const Icon(
+                      Icons.chevron_left,
+                      color: AppColors.primary,
                     ),
                   ),
-                ),
-                IconButton(
-                  onPressed: () => _change(1),
-                  icon: const Icon(
-                    Icons.chevron_right,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-
-          // legenda bermakna
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 6,
-              children: [
-                _legendDot(_cJadwal, 'Jadwal shift'),
-                _legendDot(_cLibur, 'Libur'),
-                _legendDot(_cTepat, 'Tepat waktu'),
-                _legendDot(_cTelat, 'Terlambat'),
-                _legendDot(_cLembur, 'Lembur / On-Call'),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-
-          Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        _error!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: AppColors.error),
+                  Expanded(
+                    child: Text(
+                      monthLabel[0].toUpperCase() + monthLabel.substring(1),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                  )
-                : _hari.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Tidak ada data jadwal.',
-                      style: TextStyle(color: AppColors.textHint),
-                    ),
-                  )
-                : Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // ===== KOLOM LABEL (tetap) =====
-                        Column(
-                          children: [
-                            _labelCell('Tanggal', header: true),
-                            _labelCell('Jam Masuk', sub: '(jadwal)'),
-                            _labelCell('Jam Keluar', sub: '(jadwal)'),
-                            _labelCell('Absen Masuk', sub: '(aktual)'),
-                            _labelCell('Absen Pulang', sub: '(aktual)'),
-                            _labelCell('Lembur/On-Call', sub: 'Masuk'),
-                            _labelCell('Lembur/On-Call', sub: 'Keluar'),
-                          ],
-                        ),
-                        // ===== GRID TANGGAL (geser horizontal) =====
-                        Expanded(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Column(
-                              children: [
-                                // baris 0 — angka tanggal
-                                _buildRow((i) {
-                                  final d = _day(i);
-                                  final libur = d?['is_libur'] == true;
-                                  return _gridCell(
-                                    '${d?['tanggal'] ?? (i + 1)}',
-                                    bold: true,
-                                    bg: libur ? _cLibur : _cJadwal,
-                                    fg: libur
-                                        ? AppColors.textHint
-                                        : AppColors.textPrimary,
-                                  );
-                                }),
-                                // baris 1 — jam masuk JADWAL / Libur
-                                _buildRow((i) {
-                                  final d = _day(i);
-                                  if (d?['is_libur'] == true)
-                                    return _liburCell();
-                                  return _gridCell(
-                                    (d?['jam_masuk'] ?? '-').toString(),
-                                  );
-                                }),
-                                // baris 2 — jam keluar JADWAL / Libur
-                                _buildRow((i) {
-                                  final d = _day(i);
-                                  if (d?['is_libur'] == true)
-                                    return _liburCell();
-                                  return _gridCell(
-                                    (d?['jam_keluar'] ?? '-').toString(),
-                                  );
-                                }),
-                                // baris 3 — ABSEN MASUK aktual (hijau / merah+menit / -)
-                                _buildRow((i) => _absenMasukCell(_day(i))),
-                                // baris 4 — ABSEN PULANG aktual (hijau / -)
-                                _buildRow((i) => _absenPulangCell(_day(i))),
-                                // baris 5 — lembur/oncall masuk
-                                _buildRow((i) {
-                                  final v = _day(i)?['lembur_masuk'];
-                                  return _gridCell(
-                                    (v ?? '-').toString(),
-                                    bg: v != null ? _cLembur : null,
-                                    fg: v != null
-                                        ? AppColors.info
-                                        : AppColors.textHint,
-                                  );
-                                }),
-                                // baris 6 — lembur/oncall keluar
-                                _buildRow((i) {
-                                  final v = _day(i)?['lembur_keluar'];
-                                  return _gridCell(
-                                    (v ?? '-').toString(),
-                                    bg: v != null ? _cLembur : null,
-                                    fg: v != null
-                                        ? AppColors.info
-                                        : AppColors.textHint,
-                                  );
-                                }),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                  ),
+                  IconButton(
+                    onPressed: () => _change(1),
+                    icon: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.primary,
                     ),
                   ),
-          ),
-        ],
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+
+            // legenda bermakna
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 6,
+                children: [
+                  _legendDot(_cJadwal, 'Jadwal shift'),
+                  _legendDot(_cLibur, 'Libur'),
+                  _legendDot(_cTepat, 'Tepat waktu'),
+                  _legendDot(_cTelat, 'Terlambat'),
+                  _legendDot(_cLembur, 'Lembur / On-Call'),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: AppColors.error),
+                        ),
+                      ),
+                    )
+                  : _hari.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Tidak ada data jadwal.',
+                        style: TextStyle(color: AppColors.textHint),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // KOLOM LABEL
+                            Column(
+                              children: [
+                                _labelCell('Tanggal', header: true),
+                                _labelCell('Jam Masuk', sub: '(jadwal)'),
+                                _labelCell('Jam Keluar', sub: '(jadwal)'),
+                                _labelCell('Absen Masuk', sub: '(aktual)'),
+                                _labelCell('Absen Pulang', sub: '(aktual)'),
+                                _labelCell('Lembur/On-Call', sub: 'Masuk'),
+                                _labelCell('Lembur/On-Call', sub: 'Keluar'),
+                              ],
+                            ),
+                            // GRID TANGGAL
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Column(
+                                  children: [
+                                    _buildRow((i) {
+                                      final d = _day(i);
+                                      final libur = d?['is_libur'] == true;
+                                      return _gridCell(
+                                        '${d?['tanggal'] ?? (i + 1)}',
+                                        bold: true,
+                                        bg: libur ? _cLibur : _cJadwal,
+                                        fg: libur
+                                            ? AppColors.textHint
+                                            : AppColors.textPrimary,
+                                      );
+                                    }),
+                                    _buildRow((i) {
+                                      final d = _day(i);
+                                      if (d?['is_libur'] == true)
+                                        return _liburCell();
+                                      return _gridCell(
+                                        (d?['jam_masuk'] ?? '-').toString(),
+                                      );
+                                    }),
+                                    _buildRow((i) {
+                                      final d = _day(i);
+                                      if (d?['is_libur'] == true)
+                                        return _liburCell();
+                                      return _gridCell(
+                                        (d?['jam_keluar'] ?? '-').toString(),
+                                      );
+                                    }),
+                                    _buildRow((i) => _absenMasukCell(_day(i))),
+                                    _buildRow((i) => _absenPulangCell(_day(i))),
+                                    _buildRow((i) {
+                                      final v = _day(i)?['lembur_masuk'];
+                                      return _gridCell(
+                                        (v ?? '-').toString(),
+                                        bg: v != null ? _cLembur : null,
+                                        fg: v != null
+                                            ? AppColors.info
+                                            : AppColors.textHint,
+                                      );
+                                    }),
+                                    _buildRow((i) {
+                                      final v = _day(i)?['lembur_keluar'];
+                                      return _gridCell(
+                                        (v ?? '-').toString(),
+                                        bg: v != null ? _cLembur : null,
+                                        fg: v != null
+                                            ? AppColors.info
+                                            : AppColors.textHint,
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // ---- sel absen masuk: tepat waktu (hijau) / terlambat (merah + "+Xm") / belum (-) ----
   Widget _absenMasukCell(Map? d) {
     if (d?['is_libur'] == true) return _gridCell('-', fg: AppColors.textHint);
     final v = d?['absen_masuk'];
@@ -269,7 +266,6 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
     );
   }
 
-  // ---- sel absen pulang: sudah (hijau) / belum (-) ----
   Widget _absenPulangCell(Map? d) {
     if (d?['is_libur'] == true) return _gridCell('-', fg: AppColors.textHint);
     final v = d?['absen_pulang'];
@@ -307,7 +303,6 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
     );
   }
 
-  // sel dua baris (waktu + penanda terlambat)
   Widget _twoLineCell(
     String main,
     String sub, {
