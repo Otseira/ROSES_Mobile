@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'package:camera/camera.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -23,15 +24,23 @@ class CameraService {
           )
         : cameras.first;
 
+    // ✅ FIX: Gunakan resolusi medium (stabil di Android 9 + hemat RAM)
+    //    Jika masih crash, ganti ke ResolutionPreset.low
     _controller = CameraController(
       camera,
-      ResolutionPreset.high,
+      ResolutionPreset.medium,
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
 
-    await _controller!.initialize();
-    _initialized = true;
+    try {
+      await _controller!.initialize();
+      _initialized = true;
+    } on CameraException catch (e) {
+      _initialized = false;
+      dispose();
+      throw Exception('Gagal inisialisasi kamera: ${e.description}');
+    }
   }
 
   /// Satu-satunya cara mendapat foto: capture dari kamera
@@ -46,26 +55,53 @@ class CameraService {
     final xFile = await _controller!.takePicture();
     final file = File(xFile.path);
 
-    // Watermark + Compress
-    final processed = await _process(file);
+    // ✅ FIX: Proses gambar di background isolate (mencegah ANR di Android 9)
+    final processed = await _processInBackground(file);
     return processed;
   }
 
-  Future<File> _process(File file) async {
+  /// ✅ BARU: Jalankan image processing di background isolate
+  ///    Ini mencegah main thread membeku → mencegah ANR & force close
+  Future<File> _processInBackground(File file) async {
     try {
-      final bytes = await file.readAsBytes();
-      var image = img.decodeImage(bytes);
-      if (image == null) return file;
+      final tempDir = await getTemporaryDirectory();
+      final now = DateTime.now();
+      final outPath = p.join(
+        tempDir.path,
+        'siro_${now.millisecondsSinceEpoch}.jpg',
+      );
 
-      // Resize if too large
-      if (image.width > 1920) {
-        image = img.copyResize(image, width: 1920);
+      final result = await Isolate.run(() {
+        return _processImage(file.path, outPath, now);
+      });
+
+      return File(result);
+    } catch (_) {
+      // Jika gagal proses, kembalikan foto asli (tanpa watermark)
+      return file;
+    }
+  }
+
+  /// Processing murni (berjalan di isolate terpisah, aman dari ANR)
+  static String _processImage(
+    String inputPath,
+    String outputPath,
+    DateTime now,
+  ) {
+    try {
+      final bytes = File(inputPath).readAsBytesSync();
+      var image = img.decodeImage(bytes);
+      if (image == null) return inputPath;
+
+      // ✅ FIX: Batasi ukuran gambar agar tidak OOM di Android 9
+      //    1280px cukup untuk foto absensi selfie
+      if (image.width > 1280) {
+        image = img.copyResize(image, width: 1280);
       }
 
       // Watermark
-      final now = DateTime.now();
       final text =
-          'SIRO | ${now.day}/${now.month}/${now.year} ${now.hour}:${now.minute}:${now.second}';
+          'SIRO | ${now.day}/${now.month}/${now.year} ${now.hour}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
       img.drawString(
         image,
         text,
@@ -75,25 +111,23 @@ class CameraService {
         color: img.ColorRgba8(255, 255, 255, 220),
       );
 
-      // Encode with compression
-      final dir = await getTemporaryDirectory();
-      final outPath = p.join(
-        dir.path,
-        'siro_${now.millisecondsSinceEpoch}.jpg',
-      );
-      final outFile = File(outPath);
-
-      int quality = 80;
+      // ✅ FIX: Mulai dari quality 70 dan batasi loop agar tidak infinite
+      int quality = 70;
       var encoded = img.encodeJpg(image, quality: quality);
-      while (encoded.length > 2 * 1024 * 1024 && quality > 30) {
+
+      int maxAttempts = 5;
+      while (encoded.length > 2 * 1024 * 1024 &&
+          quality > 30 &&
+          maxAttempts > 0) {
         quality -= 10;
+        maxAttempts--;
         encoded = img.encodeJpg(image, quality: quality);
       }
 
-      await outFile.writeAsBytes(encoded);
-      return outFile;
+      File(outputPath).writeAsBytesSync(encoded);
+      return outputPath;
     } catch (_) {
-      return file;
+      return inputPath;
     }
   }
 

@@ -15,8 +15,8 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.ropanasuri.sirom"          // ⚠️ GANTI dengan namespace Anda saat ini
-    compileSdk = flutter.compileSdkVersion
+    namespace = "com.ropanasuri.sirom"
+    compileSdk = 34  // ✅ DINAikkan dari flutter.compileSdkVersion → 34 (wajib untuk permission_handler)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -25,11 +25,14 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.ropanasuri.sirom"  // ⚠️ GANTI dengan applicationId Anda saat ini
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        applicationId = "com.ropanasuri.sirom"
+        minSdk = 21            // ✅ MINIMAL 21 (Android 5.0) — wajib untuk camera + permission_handler
+        targetSdk = 34         // ✅ Target Android 14
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        // ✅ FIX: MultiDex untuk mencegah crash di Android 9 dengan banyak dependency
+        multiDexEnabled = true
     }
 
     signingConfigs {
@@ -43,16 +46,27 @@ android {
 
     buildTypes {
         release {
+            // Minify & shrink resource untuk ukuran APK lebih kecil
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
-                signingConfigs.getByName("debug")   // fallback: debug tetap jalan tanpa key
+                signingConfigs.getByName("debug")
             }
+        }
+        
+        debug {
+            isMinifyEnabled = false
         }
     }
 }
 
-// ✅ PENGGANTI kotlinOptions — cara baru (AGP 9 / Kotlin 2.x compilerOptions DSL)
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
@@ -61,4 +75,9 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+// ✅ Tambahan: Pastikan dependency MultiDex terpasang untuk Android 9
+dependencies {
+    implementation("androidx.multidex:multidex:2.0.1")
 }

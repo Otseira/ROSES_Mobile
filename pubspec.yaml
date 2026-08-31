@@ -43,7 +43,7 @@ dependencies:
   path: ^1.9.0
   image: ^4.2.0
   device_info_plus: ^10.1.0
-  permission_handler: ^11.3.0
+  permission_handler: ^13.0.1
   google_fonts: ^6.1.0
   flutter_svg: ^2.0.10
   lottie: ^3.1.0
