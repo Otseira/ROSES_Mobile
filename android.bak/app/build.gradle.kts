@@ -1,22 +1,6 @@
-import java.util.Properties
-import java.io.FileInputStream
-
-plugins {
-    id("com.android.application")
-    id("kotlin-android")
-    id("dev.flutter.flutter-gradle-plugin")
-}
-
-// ===== Signing release configuration =====
-val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-}
-
 android {
-    namespace = "com.ropanasuri.siro_mobile"
-    compileSdk = 37
+    namespace = "com.ropanasuri.sirom"
+    compileSdk = 36  // ✅ Android 16 stable (tersedia & support plugin baru)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -25,9 +9,9 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.ropanasuri.siro_mobile"
-        minSdk = flutter.minSdkVersion
-        targetSdk = 37
+        applicationId = "com.ropanasuri.sirom"
+        minSdk = 21              // ✅ Android 5.0+ → mencakup Android 9 karyawan
+        targetSdk = 36           // ✅ Target Android 16 (HP Anda)
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
@@ -44,7 +28,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = false      // Sementara off (hindari error package.xml)
             isShrinkResources = false
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
@@ -52,9 +36,7 @@ android {
                 signingConfigs.getByName("debug")
             }
         }
-        debug {
-            isMinifyEnabled = false
-        }
+        debug { isMinifyEnabled = false }
     }
 }
 
@@ -64,9 +46,7 @@ kotlin {
     }
 }
 
-flutter {
-    source = "../.."
-}
+flutter { source = "../.." }
 
 dependencies {
     implementation("androidx.multidex:multidex:2.0.1")
