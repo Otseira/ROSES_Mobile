@@ -1,0 +1,5 @@
+{
+    "require": {
+        "maatwebsite/excel": "^4.0"
+    }
+}
