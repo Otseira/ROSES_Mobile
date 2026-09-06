@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/services/storage_service.dart';
 import '../models/user_model.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) {
@@ -22,10 +23,9 @@ final freshProfileProvider = FutureProvider.autoDispose<UserModel?>((
     final api = ref.read(apiServiceProvider);
     final response = await api.get('/me');
 
-    if (response is Map && response['data'] is Map) {
-      final fresh = UserModel.fromJson(
-        Map<String, dynamic>.from(response['data'] as Map),
-      );
+    final raw = response['data'];
+    if (raw is Map<String, dynamic>) {
+      final fresh = UserModel.fromJson(Map<String, dynamic>.from(raw));
 
       // Jika server tidak mengirim foto_profil, pertahankan foto dari cache
       if (fresh.fotoProfil == null) {
@@ -42,7 +42,7 @@ final freshProfileProvider = FutureProvider.autoDispose<UserModel?>((
             role: fresh.role,
             fotoProfil: stored.fotoProfil,
             managesUnits: fresh.managesUnits,
-          );
+          ); // ✅ canValidasi TIDAK dikirim — otomatis dihitung dari role
         }
       }
 
@@ -79,9 +79,47 @@ class AuthState {
 class AuthNotifier extends StateNotifier<AuthState> {
   final Ref _ref;
 
-  AuthNotifier(this._ref) : super(AuthState());
+  AuthNotifier(this._ref) : super(AuthState(isLoading: true)) {
+    _init();
+  }
 
   AuthService get _authService => _ref.read(authServiceProvider);
+
+  /// ✅ AUTO-LOGIN: cek token di storage saat app dibuka
+  Future<void> _init() async {
+    try {
+      final token = await StorageService.getToken();
+
+      if (token == null || token.isEmpty) {
+        // Tidak ada token → user belum login
+        state = AuthState(isLoading: false);
+        return;
+      }
+
+      // Token ada → validasi ke server
+      final user = await _authService.getCurrentUser();
+
+      if (user != null) {
+        // Token valid → langsung masuk
+        state = AuthState(user: user, isLoading: false);
+      } else {
+        // Token invalid/expired → hapus & ke login
+        await StorageService.clearAll();
+        state = AuthState(isLoading: false);
+      }
+    } catch (e) {
+      // Error saat validasi (network issue, dll) → coba pakai cache
+      final cachedUser = await StorageService.getUserData();
+      if (cachedUser != null) {
+        state = AuthState(
+          user: UserModel.fromJson(cachedUser),
+          isLoading: false,
+        );
+      } else {
+        state = AuthState(isLoading: false);
+      }
+    }
+  }
 
   Future<bool> login(String login, String password) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -89,7 +127,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final user = await _authService.login(login, password);
       state = AuthState(user: user, isLoading: false);
 
-      // ✅ Invalidate provider agar data user baru langsung ter-load
+      // Invalidate provider agar data user baru langsung ter-load
       _ref.invalidate(authStateProvider);
       _ref.invalidate(freshProfileProvider);
 
@@ -102,16 +140,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _authService.logout();
-    state = AuthState();
+    state = AuthState(isLoading: false);
 
-    // ✅ FIX UTAMA: Invalidate SEMUA provider yang menyimpan data user
-    //    Ini memastikan cache provider terbuang → akun baru pasti fetch data baru
+    // Invalidate semua provider yang menyimpan data user
     _ref.invalidate(authStateProvider);
     _ref.invalidate(freshProfileProvider);
-
-    // TODO: Tambahkan invalidate untuk provider lain jika ada
-    // _ref.invalidate(absensiStatusProvider);
-    // _ref.invalidate(jadwalDinasProvider);
-    // dll...
   }
 }

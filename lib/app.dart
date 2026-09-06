@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/app_routes.dart';
 import 'core/theme/app_theme.dart';
@@ -11,7 +12,6 @@ class SiroApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ✅ Gunakan authNotifierProvider (StateNotifier) agar reaktif ke perubahan logout/login
     final authState = ref.watch(authNotifierProvider);
 
     return MaterialApp(
@@ -24,11 +24,12 @@ class SiroApp extends ConsumerWidget {
   }
 
   Widget _buildHome(AuthState authState) {
+    // ✅ Loading saat cek token (app startup)
     if (authState.isLoading) {
       return const SplashLoading();
     }
 
-    // Jika ada user di state → tampilkan Home, jika tidak → Login
+    // ✅ Jika ada user → HomeScreen, jika tidak → LoginScreen
     return authState.user != null ? const HomeScreen() : const LoginScreen();
   }
 }
