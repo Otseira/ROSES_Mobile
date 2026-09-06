@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_constants.dart';
+import '../utils/api_error_mapper.dart';
 import 'storage_service.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
@@ -33,7 +34,6 @@ class ApiService {
         },
         onError: (error, handler) async {
           if (error.response?.statusCode == 401) {
-            // ✅ FIX: await clearAll agar data benar-benar terhapus sebelum lanjut
             await StorageService.clearAll();
           }
           handler.next(error);
@@ -49,20 +49,20 @@ class ApiService {
   }) async {
     try {
       final response = await _dio.get(endpoint, queryParameters: query);
-      return response.data;
+      return _extractData(response);
     } on DioException catch (e) {
       throw _handleError(e);
     }
   }
 
-  // PUT JSON (untuk edit profil & ganti password)
+  // PUT JSON
   Future<Map<String, dynamic>> put(
     String endpoint, {
     Map<String, dynamic>? data,
   }) async {
     try {
       final response = await _dio.put(endpoint, data: data);
-      return response.data;
+      return _extractData(response);
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -75,7 +75,7 @@ class ApiService {
   }) async {
     try {
       final response = await _dio.post(endpoint, data: data);
-      return response.data;
+      return _extractData(response);
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -107,22 +107,26 @@ class ApiService {
         data: formData,
         options: Options(contentType: 'multipart/form-data'),
       );
-      return response.data;
+      return _extractData(response);
     } on DioException catch (e) {
       throw _handleError(e);
     }
   }
 
-  String _handleError(DioException e) {
-    if (e.response?.data is Map<String, dynamic>) {
-      return e.response!.data['message'] ?? 'Terjadi kesalahan pada server.';
+  /// Ekstrak data dari response (handle berbagai format)
+  Map<String, dynamic> _extractData(Response response) {
+    if (response.data is Map<String, dynamic>) {
+      return response.data as Map<String, dynamic>;
     }
-    if (e.type == DioExceptionType.connectionTimeout) {
-      return 'Koneksi timeout. Periksa internet Anda.';
+    if (response.data is List) {
+      return {'data': response.data};
     }
-    if (e.type == DioExceptionType.connectionError) {
-      return 'Tidak dapat terhubung ke server. Periksa internet Anda.';
-    }
-    return 'Terjadi kesalahan. Silakan coba lagi.';
+    return {'data': response.data};
+  }
+
+  /// Handle error DioException → pesan ramah user
+  Exception _handleError(DioException e) {
+    final message = ApiErrorMapper.mapToMessage(e);
+    return Exception(message);
   }
 }

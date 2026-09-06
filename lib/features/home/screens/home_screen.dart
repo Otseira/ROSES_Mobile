@@ -9,7 +9,6 @@ import '../../roster/screens/jadwal_dinas_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../lembur/screens/validasi_lembur_screen.dart';
 import '../../../core/widgets/profile_avatar.dart';
-import '../../absensi/screens/absensi_luar_jadwal_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -224,44 +223,30 @@ class HomeScreen extends ConsumerWidget {
                         ],
                       ),
 
-                      const SizedBox(height: 12),
-
-                      // ✅ ROW 3: Absensi Luar Jadwal | Validasi Lembur (jika ada hak akses)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _ActionCard(
-                              icon: Icons.swap_horizontal_circle_outlined,
-                              label: 'Absensi Luar Jadwal',
-                              color: AppColors.warning,
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const AbsensiLuarJadwalScreen(),
+                      // ✅ ROW 3: Validasi Lembur (hanya untuk atasan)
+                      if (user?.canValidasi == true) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _ActionCard(
+                                icon: Icons.fact_check_outlined,
+                                label: 'Validasi Lembur',
+                                color: AppColors.warning,
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const ValidasiLemburScreen(),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: (user?.canValidasi == true)
-                                ? _ActionCard(
-                                    icon: Icons.fact_check_outlined,
-                                    label: 'Validasi Lembur',
-                                    color: AppColors.secondary,
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const ValidasiLemburScreen(),
-                                      ),
-                                    ),
-                                  )
-                                : const SizedBox.shrink(), // ✅ Placeholder ukuran sama (kosong)
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 12),
+                            const Expanded(child: SizedBox.shrink()),
+                          ],
+                        ),
+                      ],
 
                       // === INFO CARD ===
                       const SizedBox(height: 28),
@@ -274,20 +259,21 @@ class HomeScreen extends ConsumerWidget {
                             color: AppColors.info.withValues(alpha: 0.15),
                           ),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.info_outline,
                               color: AppColors.info,
                               size: 22,
                             ),
-                            SizedBox(width: 12),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'Pastikan GPS aktif dan berada di area rumah sakit saat melakukan absensi. Foto diambil langsung dari kamera.',
-                                style: TextStyle(
+                                'Anda tetap bisa absen meski belum ada jadwal dinas. Status otomatis menyesuaikan saat jadwal dibuat oleh atasan.',
+                                style: const TextStyle(
                                   fontSize: 13,
                                   color: AppColors.textSecondary,
+                                  height: 1.4,
                                 ),
                               ),
                             ),
@@ -351,7 +337,7 @@ class _ActionCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               label,
-              textAlign: TextAlign.center, // ✅ agar teks panjang tetap rapi
+              textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
