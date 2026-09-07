@@ -92,7 +92,7 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
       MaterialPageRoute(builder: (_) => PhotoCaptureScreen(title: title)),
     );
     if (photo == null) return null; // user batal
-    final loc = await _locationService.getValidatedLocation();
+    final loc = await _locationService.getFastLocation();
     if (!loc.success) {
       setState(() => _error = loc.error);
       return null;

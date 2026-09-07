@@ -42,7 +42,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
   }
 
   Future<dynamic> _ambilLokasi() async {
-    final loc = await _locationService.getValidatedLocation();
+    final loc = await _locationService.getFastLocation();
     if (!loc.success) {
       if (mounted) _snack(loc.error ?? 'Lokasi gagal diambil.');
       return null;

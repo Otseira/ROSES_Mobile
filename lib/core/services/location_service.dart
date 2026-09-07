@@ -112,6 +112,49 @@ class LocationService {
 
     return best; // posisi TERBAIK yang didapat
   }
+
+  Future<LocationResult> getFastLocation() async {
+    // 1. Permission
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return LocationResult.failure(
+          'Izin lokasi ditolak. Aktifkan izin lokasi di pengaturan.',
+        );
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      return LocationResult.failure(
+        'Izin lokasi ditolak permanen. Buka pengaturan untuk mengaktifkan.',
+      );
+    }
+
+    // 2. GPS aktif?
+    final gpsEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!gpsEnabled) {
+      return LocationResult.failure('GPS tidak aktif. Silakan aktifkan GPS.');
+    }
+
+    // 3. SATU kali ambil posisi (cepat)
+    try {
+      final position = await Geolocator.getCurrentPosition().timeout(
+        const Duration(seconds: 8),
+      );
+      return LocationResult(
+        success: true,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+      );
+    } on TimeoutException {
+      return LocationResult.failure(
+        'Timeout mendapatkan lokasi. Pastikan GPS aktif.',
+      );
+    } catch (e) {
+      return LocationResult.failure('Gagal mendapatkan lokasi: $e');
+    }
+  }
 }
 
 class LocationResult {
