@@ -17,8 +17,9 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
   String? _error;
   late DateTime _sel = DateTime(DateTime.now().year, DateTime.now().month);
 
-  static const double _rowH = 46;
-  static const double _colW = 60;
+  // ✅ Tinggi baris dinaikkan sedikit agar muat untuk 2 baris (sesi 1 + sesi 2)
+  static const double _rowH = 58;
+  static const double _colW = 64;
   static const double _labelW = 152;
   static const Color _line = AppColors.border;
 
@@ -27,6 +28,8 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
   Color get _cTepat => AppColors.success.withValues(alpha: 0.16);
   Color get _cTelat => AppColors.error.withValues(alpha: 0.14);
   Color get _cLembur => AppColors.info.withValues(alpha: 0.16);
+  // ✅ Warna khusus untuk sesi 2
+  Color get _cS2 => const Color(0xFF5E35B1).withValues(alpha: 0.14);
 
   @override
   void initState() {
@@ -74,12 +77,10 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Jadwal Dinas Bulanan')),
-      // ✅ FIX: Bungkus dengan RefreshIndicator agar user bisa pull-to-refresh
       body: RefreshIndicator(
         onRefresh: _fetch,
         child: Column(
           children: [
-            // navigasi bulan
             Container(
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -115,7 +116,6 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
             ),
             const Divider(height: 1),
 
-            // legenda bermakna
             Container(
               color: Colors.white,
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
@@ -128,6 +128,7 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
                   _legendDot(_cTepat, 'Tepat waktu'),
                   _legendDot(_cTelat, 'Terlambat'),
                   _legendDot(_cLembur, 'Lembur / On-Call'),
+                  _legendDot(_cS2, 'Sesi 2 (②)'), // ✅ legenda baru
                 ],
               ),
             ),
@@ -161,7 +162,6 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // KOLOM LABEL
                             Column(
                               children: [
                                 _labelCell('Tanggal', header: true),
@@ -173,15 +173,17 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
                                 _labelCell('Lembur/On-Call', sub: 'Keluar'),
                               ],
                             ),
-                            // GRID TANGGAL
                             Expanded(
                               child: SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: Column(
                                   children: [
+                                    // BARIS TANGGAL
                                     _buildRow((i) {
                                       final d = _day(i);
-                                      final libur = d?['is_libur'] == true;
+                                      final libur =
+                                          d?['is_libur'] == true &&
+                                          d?['sesi2'] == null;
                                       return _gridCell(
                                         '${d?['tanggal'] ?? (i + 1)}',
                                         bold: true,
@@ -191,44 +193,28 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
                                             : AppColors.textPrimary,
                                       );
                                     }),
-                                    _buildRow((i) {
-                                      final d = _day(i);
-                                      if (d?['is_libur'] == true)
-                                        return _liburCell();
-                                      return _gridCell(
-                                        (d?['jam_masuk'] ?? '-').toString(),
-                                      );
-                                    }),
-                                    _buildRow((i) {
-                                      final d = _day(i);
-                                      if (d?['is_libur'] == true)
-                                        return _liburCell();
-                                      return _gridCell(
-                                        (d?['jam_keluar'] ?? '-').toString(),
-                                      );
-                                    }),
+                                    // JAM MASUK (jadwal) — + sesi 2
+                                    _buildRow(
+                                      (i) => _jadwalCell(_day(i), 'jam_masuk'),
+                                    ),
+                                    // JAM KELUAR (jadwal) — + sesi 2
+                                    _buildRow(
+                                      (i) => _jadwalCell(_day(i), 'jam_keluar'),
+                                    ),
+                                    // ABSEN MASUK (aktual) — + sesi 2
                                     _buildRow((i) => _absenMasukCell(_day(i))),
+                                    // ABSEN PULANG (aktual) — + sesi 2
                                     _buildRow((i) => _absenPulangCell(_day(i))),
-                                    _buildRow((i) {
-                                      final v = _day(i)?['lembur_masuk'];
-                                      return _gridCell(
-                                        (v ?? '-').toString(),
-                                        bg: v != null ? _cLembur : null,
-                                        fg: v != null
-                                            ? AppColors.info
-                                            : AppColors.textHint,
-                                      );
-                                    }),
-                                    _buildRow((i) {
-                                      final v = _day(i)?['lembur_keluar'];
-                                      return _gridCell(
-                                        (v ?? '-').toString(),
-                                        bg: v != null ? _cLembur : null,
-                                        fg: v != null
-                                            ? AppColors.info
-                                            : AppColors.textHint,
-                                      );
-                                    }),
+                                    // LEMBUR MASUK — + sesi 2
+                                    _buildRow(
+                                      (i) =>
+                                          _lemburCell(_day(i), 'lembur_masuk'),
+                                    ),
+                                    // LEMBUR KELUAR — + sesi 2
+                                    _buildRow(
+                                      (i) =>
+                                          _lemburCell(_day(i), 'lembur_keluar'),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -244,38 +230,162 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
     );
   }
 
-  Widget _absenMasukCell(Map? d) {
-    if (d?['is_libur'] == true) return _gridCell('-', fg: AppColors.textHint);
-    final v = d?['absen_masuk'];
-    if (v == null) return _gridCell('-', fg: AppColors.textHint);
-    final telat = (d?['terlambat_menit'] as int?) ?? 0;
-    if (telat > 0) {
+  // ✅ SEL JADWAL (jam_masuk / jam_keluar) — menampilkan sesi 2 bila ada
+  Widget _jadwalCell(Map? d, String key) {
+    if (d == null) return _gridCell('-', fg: AppColors.textHint);
+    if (d['is_libur'] == true && d['sesi2'] == null) return _liburCell();
+
+    final s2 = d['sesi2'] as Map?;
+    final v1 = (d[key] ?? '-').toString();
+    final v2 = s2?[key]?.toString();
+
+    if (v2 != null) {
       return _twoLineCell(
-        v.toString(),
-        '+$telat m',
-        bg: _cTelat,
-        fg: AppColors.error,
-        subFg: AppColors.error,
+        v1,
+        '②$v2',
+        bg: _cJadwal,
+        fg: AppColors.textPrimary,
+        subFg: const Color(0xFF5E35B1),
+        subBold: true,
       );
     }
+    return _gridCell(v1);
+  }
+
+  // ✅ ABSEN MASUK — dengan dukungan sesi 2
+  Widget _absenMasukCell(Map? d) {
+    if (d == null) return _gridCell('-', fg: AppColors.textHint);
+    if (d['is_libur'] == true && d['sesi2'] == null)
+      return _gridCell('-', fg: AppColors.textHint);
+
+    final s2 = d['sesi2'] as Map?;
+    final v1 = d['absen_masuk'];
+    final t1 = (d['terlambat_menit'] as int?) ?? 0;
+
+    // Buat chip sesi 1
+    Widget sesi1() {
+      if (v1 == null) {
+        return Text(
+          '-',
+          style: const TextStyle(fontSize: 11, color: AppColors.textHint),
+        );
+      }
+      final late = t1 > 0;
+      return Text(
+        late ? '$v1 +$t1 m' : v1.toString(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: late ? AppColors.error : AppColors.success,
+        ),
+      );
+    }
+
+    // Buat chip sesi 2 (jika ada)
+    Widget? sesi2() {
+      if (s2 == null) return null;
+      final v2 = s2['absen_masuk'];
+      final t2 = (s2['terlambat_menit'] as int?) ?? 0;
+      if (v2 == null) {
+        return const Text(
+          '②-',
+          style: TextStyle(fontSize: 10, color: AppColors.textHint),
+        );
+      }
+      final late = t2 > 0;
+      return Text(
+        late ? '②$v2 +$t2 m' : '②$v2',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: late ? AppColors.error : const Color(0xFF5E35B1),
+        ),
+      );
+    }
+
+    final bg1 = v1 == null ? null : (t1 > 0 ? _cTelat : _cTepat);
+
+    if (s2 == null) {
+      // Tanpa sesi 2 → satu sel saja dengan warna latar
+      if (v1 == null) return _gridCell('-', fg: AppColors.textHint);
+      return _gridCell(
+        t1 > 0 ? '$v1 +$t1 m' : v1.toString(),
+        bold: true,
+        bg: bg1,
+        fg: t1 > 0 ? AppColors.error : AppColors.success,
+      );
+    }
+
+    // Dengan sesi 2 → dua baris bertumpuk
+    return Container(
+      width: _colW,
+      height: _rowH,
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg1 ?? Colors.white,
+        border: Border.all(color: _line, width: 0.5),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [sesi1(), const SizedBox(height: 2), sesi2()!],
+      ),
+    );
+  }
+
+  // ✅ ABSEN PULANG — dengan dukungan sesi 2
+  Widget _absenPulangCell(Map? d) {
+    if (d == null) return _gridCell('-', fg: AppColors.textHint);
+    if (d['is_libur'] == true && d['sesi2'] == null)
+      return _gridCell('-', fg: AppColors.textHint);
+
+    final s2 = d['sesi2'] as Map?;
+    final v1 = d['absen_pulang'];
+    final v2 = s2?['absen_pulang']?.toString();
+
+    if (v2 != null) {
+      return _twoLineCell(
+        (v1 ?? '-').toString(),
+        '②$v2',
+        bg: v1 != null ? _cTepat : null,
+        fg: v1 != null ? AppColors.success : AppColors.textHint,
+        subFg: const Color(0xFF5E35B1),
+        subBold: true,
+      );
+    }
+
+    if (v1 == null) return _gridCell('-', fg: AppColors.textHint);
     return _gridCell(
-      v.toString(),
+      v1.toString(),
       bold: true,
       bg: _cTepat,
       fg: AppColors.success,
     );
   }
 
-  Widget _absenPulangCell(Map? d) {
-    if (d?['is_libur'] == true) return _gridCell('-', fg: AppColors.textHint);
-    final v = d?['absen_pulang'];
-    if (v == null) return _gridCell('-', fg: AppColors.textHint);
-    return _gridCell(
-      v.toString(),
-      bold: true,
-      bg: _cTepat,
-      fg: AppColors.success,
-    );
+  // ✅ LEMBUR MASUK / KELUAR — dengan dukungan sesi 2
+  Widget _lemburCell(Map? d, String key) {
+    if (d == null) return _gridCell('-', fg: AppColors.textHint);
+
+    final s2 = d['sesi2'] as Map?;
+    final v1 = d[key];
+    final v2 = s2?[key]?.toString();
+
+    if (v1 == null && v2 == null) {
+      return _gridCell('-', fg: AppColors.textHint);
+    }
+
+    if (v2 != null) {
+      return _twoLineCell(
+        (v1 ?? '-').toString(),
+        '②$v2',
+        bg: _cLembur,
+        fg: AppColors.info,
+        subFg: const Color(0xFF5E35B1),
+        subBold: true,
+      );
+    }
+
+    return _gridCell(v1.toString(), bg: _cLembur, fg: AppColors.info);
   }
 
   Widget _buildRow(Widget Function(int i) cellBuilder) =>
@@ -303,18 +413,20 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
     );
   }
 
+  // ✅ Helper: sel dengan 2 baris (sesi 1 + sesi 2)
   Widget _twoLineCell(
     String main,
     String sub, {
     Color? bg,
     Color? fg,
     Color? subFg,
+    bool subBold = false,
   }) {
     return Container(
       width: _colW,
       height: _rowH,
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
       decoration: BoxDecoration(
         color: bg,
         border: Border.all(color: _line, width: 0.5),
@@ -325,16 +437,17 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
           Text(
             main,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               color: fg,
             ),
           ),
+          const SizedBox(height: 2),
           Text(
             sub,
             style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w600,
+              fontSize: 10,
+              fontWeight: subBold ? FontWeight.w700 : FontWeight.w600,
               color: subFg,
             ),
           ),
