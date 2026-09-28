@@ -6,8 +6,8 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/home/screens/home_screen.dart';
-import 'core/services/api_service.dart';
 import 'core/services/branding_service.dart';
+import 'core/services/api_service.dart';
 
 class SiroApp extends ConsumerWidget {
   const SiroApp({super.key});
@@ -43,40 +43,34 @@ class SplashLoading extends ConsumerStatefulWidget {
 }
 
 class _SplashLoadingState extends ConsumerState<SplashLoading> {
-  BrandingData _b = const BrandingData();
+  BrandingData _cache = const BrandingData();
 
   @override
   void initState() {
     super.initState();
-    _init();
-  }
-
-  Future<void> _init() async {
-    // 1) Cache dulu → tampil instan
-    final c = await BrandingService.cached();
-    if (!mounted) return;
-    setState(() => _b = c);
-
-    // 2) Refresh di latar → berlaku untuk pembukaan berikutnya
-    final fresh = await BrandingService.refresh(ref.read(apiServiceProvider));
-    if (!mounted) return;
-    setState(() => _b = fresh);
+    // Cache lokal → tampil instan tanpa flash
+    BrandingService.cached().then((c) {
+      if (mounted) setState(() => _cache = c);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = BrandingService.parseColor(_b.bgColor);
+    // ✅ Bila refresh jaringan sudah selesai → langsung pakai data terbaru (live update)
+    final fresh = ref.watch(brandingProvider).valueOrNull;
+    final b = fresh ?? _cache;
+
+    final bgColor = BrandingService.parseColor(b.bgColor);
 
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background: warna admin → gambar admin → gradasi bawaan
           if (bgColor != null)
             ColoredBox(color: bgColor)
-          else if (_b.bgUrl != null)
+          else if (b.bgUrl != null)
             Image.network(
-              _b.bgUrl!,
+              b.bgUrl!,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => const _DefaultSplashBg(),
             )
@@ -87,10 +81,10 @@ class _SplashLoadingState extends ConsumerState<SplashLoading> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _SplashLogo(url: _b.logoUrl, size: 110),
+                _SplashLogo(url: b.logoUrl, size: 110),
                 const SizedBox(height: 24),
                 Text(
-                  _b.nama ?? 'ROSES',
+                  b.nama ?? 'ROSES',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 28,
@@ -101,7 +95,7 @@ class _SplashLoadingState extends ConsumerState<SplashLoading> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _b.tagline ?? 'Sistem Informasi Absensi',
+                  b.tagline ?? 'Sistem Informasi Absensi',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,

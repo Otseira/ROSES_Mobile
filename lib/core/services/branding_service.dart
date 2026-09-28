@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'api_service.dart';
 import 'storage_service.dart';
 
@@ -88,3 +89,9 @@ class BrandingService {
     return v == null ? null : Color(0xFF000000 | v);
   }
 }
+
+/// ✅ Provider global: refresh branding sekali per pembukaan aplikasi.
+/// Tetap berjalan walau splash sudah tertutup → cache selalu segar.
+final brandingProvider = FutureProvider<BrandingData>((ref) async {
+  return BrandingService.refresh(ref.read(apiServiceProvider));
+});
