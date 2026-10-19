@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_colors.dart';
-import '../services/api_service.dart';
-import '../services/storage_service.dart';
+import '../services/branding_service.dart';
 
 /// Logo + nama instansi dinamis untuk halaman login.
 /// Mengambil dari /api/branding (publik), dengan cache lokal & fallback bawaan.
@@ -34,10 +33,7 @@ class _InstansiBrandingState extends ConsumerState<InstansiBranding>
     end: 1.0,
   ).animate(CurvedAnimation(parent: _ac, curve: Curves.easeOut));
 
-  static const _kLogo = 'branding_logo_url';
-  static const _kNama = 'branding_nama';
-  static const _kTag = 'branding_tagline';
-  static const _defaultNama = 'RSUD Ropanasuri';
+  static const _defaultNama = 'RSKB Ropanasuri';
 
   @override
   void initState() {
@@ -47,52 +43,27 @@ class _InstansiBrandingState extends ConsumerState<InstansiBranding>
   }
 
   Future<void> _boot() async {
-    // 1) Tampilkan cache dulu (instan, tanpa flash)
-    final cLogo = await StorageService.read(_kLogo);
-    final cNama = await StorageService.read(_kNama);
-    final cTag = await StorageService.read(_kTag);
+    // 1) Tampilkan cache lokal terlebih dahulu (tanpa jeda/flash)
+    final cached = await BrandingService.cached();
     if (!mounted) return;
     setState(() {
-      _logoUrl = (cLogo != null && cLogo.isNotEmpty) ? cLogo : null;
-      _nama = (cNama != null && cNama.isNotEmpty) ? cNama : null;
-      _tagline = (cTag != null && cTag.isNotEmpty) ? cTag : null;
+      _logoUrl = cached.logoUrl;
+      _nama = cached.nama;
+      _tagline = cached.tagline;
       _loaded = true;
     });
 
-    // 2) Fetch terbaru di latar (stale-while-revalidate)
+    // 2) Periksa jika provider belum dimuat, muat via brandingProvider
     try {
-      final api = ref.read(apiServiceProvider);
-      final res = await api.get('/branding');
-      if (res['success'] == true && res['data'] is Map) {
-        final d = res['data'] as Map;
-        final url = d['logo_url']?.toString();
-        final nama = d['nama_instansi']?.toString();
-        final tag = d['tagline']?.toString();
-        // cache
-        if (url != null && url.isNotEmpty) {
-          await StorageService.write(_kLogo, url);
-        } else {
-          await StorageService.remove(_kLogo);
-        }
-        if (nama != null && nama.isNotEmpty) {
-          await StorageService.write(_kNama, nama);
-        } else {
-          await StorageService.remove(_kNama);
-        }
-        if (tag != null && tag.isNotEmpty) {
-          await StorageService.write(_kTag, tag);
-        } else {
-          await StorageService.remove(_kTag);
-        }
-        if (!mounted) return;
-        setState(() {
-          _logoUrl = (url != null && url.isNotEmpty) ? url : null;
-          _nama = (nama != null && nama.isNotEmpty) ? nama : null;
-          _tagline = (tag != null && tag.isNotEmpty) ? tag : null;
-        });
-      }
+      final fresh = await ref.read(brandingProvider.future);
+      if (!mounted) return;
+      setState(() {
+        _logoUrl = fresh.logoUrl ?? _logoUrl;
+        _nama = fresh.nama ?? _nama;
+        _tagline = fresh.tagline ?? _tagline;
+      });
     } catch (_) {
-      // gagal jaringan → biarkan cache / fallback tampil (graceful)
+      // offline/gagal → tetap gunakan cache lokal
     }
   }
 
@@ -127,8 +98,8 @@ class _InstansiBrandingState extends ConsumerState<InstansiBranding>
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
                         colors: [
-                          AppColors.primary.withValues(alpha: 0.22),
-                          AppColors.primary.withValues(alpha: 0.0),
+                          AppColors.primary.withOpacity(0.22),
+                          AppColors.primary.withOpacity(0.0),
                         ],
                       ),
                     ),
@@ -159,7 +130,7 @@ class _InstansiBrandingState extends ConsumerState<InstansiBranding>
               Text(
                 _tagline!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12,
                   letterSpacing: 1.4,
                   color: AppColors.textSecondary,
@@ -183,7 +154,7 @@ class _InstansiBrandingState extends ConsumerState<InstansiBranding>
         borderRadius: BorderRadius.circular(s * 0.26),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.35),
+            color: AppColors.primary.withOpacity(0.35),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -202,7 +173,7 @@ class _InstansiBrandingState extends ConsumerState<InstansiBranding>
         borderRadius: BorderRadius.circular(s * 0.26),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: Colors.black.withOpacity(0.12),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),

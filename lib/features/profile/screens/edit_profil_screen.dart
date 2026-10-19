@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/utils/image_compressor.dart';
 import '../../../core/widgets/custom_button.dart';
 import '../../../core/widgets/custom_text_field.dart';
 import '../../../core/widgets/loading_overlay.dart';
@@ -80,30 +81,37 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
 
   // ============ UPDATE FOTO PROFIL (DARI GALERI) ============
   Future<void> _ubahFoto() async {
-    setState(() => _loadingFoto = true);
-
     try {
       final picker = ImagePicker();
 
       final XFile? foto = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 80,
+        maxWidth: 1280,
+        maxHeight: 1280,
       );
 
       if (foto == null) return;
 
-      final api = ApiService();
+      if (!mounted) return;
+      setState(() => _loadingFoto = true);
+
+      final compressed = await ImageCompressor.compressFile(
+        File(foto.path),
+        minWidth: 720,
+        minHeight: 720,
+        quality: 75,
+      );
+
+      final api = ref.read(apiServiceProvider);
       final response = await api.postMultipart(
-        '/profil/foto', // ✅ tanpa prefix /api
-        files: {'foto': File(foto.path)},
+        '/profil/foto',
+        files: {'foto': compressed},
       );
 
       if (response is Map) {
         final data = response['data'];
         if (data is Map && data['foto_url'] != null) {
-          setState(() => _fotoUrl = data['foto_url'] as String);
+          if (mounted) setState(() => _fotoUrl = data['foto_url'] as String);
         }
       }
 
@@ -124,7 +132,7 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
     setState(() => _loading = true);
 
     try {
-      final api = ApiService();
+      final api = ref.read(apiServiceProvider);
       await api.put(
         '/profil',
         data: {
@@ -160,9 +168,9 @@ class _EditProfilScreenState extends ConsumerState<EditProfilScreen> {
     setState(() => _loadingPassword = true);
 
     try {
-      final api = ApiService();
+      final api = ref.read(apiServiceProvider);
       await api.put(
-        '/profil/password', // ✅ tanpa prefix /api
+        '/profil/password',
         data: {
           'current_password': _currentPassController.text,
           'new_password': _newPassController.text,

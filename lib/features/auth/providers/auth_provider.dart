@@ -5,10 +5,6 @@ import '../../../core/services/api_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../models/user_model.dart';
 
-final authServiceProvider = Provider<AuthService>((ref) {
-  return AuthService(ref.read(apiServiceProvider));
-});
-
 /// Data user dari cache lokal (cepat, untuk tampilan awal)
 final authStateProvider = FutureProvider.autoDispose<UserModel?>((ref) async {
   final authService = ref.read(authServiceProvider);
@@ -85,7 +81,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   AuthService get _authService => _ref.read(authServiceProvider);
 
-  /// ✅ AUTO-LOGIN: cek token di storage saat app dibuka
+  /// AUTO-LOGIN: cek token di storage saat app dibuka
   Future<void> _init() async {
     try {
       final token = await StorageService.getToken();
@@ -100,15 +96,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final user = await _authService.getCurrentUser();
 
       if (user != null) {
-        // Token valid → langsung masuk
+        // Token valid atau berhasil fallback ke cache
         state = AuthState(user: user, isLoading: false);
       } else {
-        // Token invalid/expired → hapus & ke login
+        // Token invalid/expired dan tidak ada data cache yang valid
         await StorageService.clearAll();
         state = AuthState(isLoading: false);
       }
-    } catch (e) {
-      // Error saat validasi (network issue, dll) → coba pakai cache
+    } catch (_) {
+      // Error saat inisialisasi (network issue, dll) → coba pakai cache
       final cachedUser = await StorageService.getUserData();
       if (cachedUser != null) {
         state = AuthState(

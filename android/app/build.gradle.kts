@@ -33,12 +33,17 @@ android {
         multiDexEnabled = true
     }
 
+    val keystoreFile = keystoreProperties["storeFile"]?.let { file(it) }
+    val hasValidReleaseKey = keystorePropertiesFile.exists() && keystoreFile != null && keystoreFile.exists()
+
     signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String?
+        if (hasValidReleaseKey) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String?
+                keyPassword = keystoreProperties["keyPassword"] as String?
+                storeFile = keystoreFile
+                storePassword = keystoreProperties["storePassword"] as String?
+            }
         }
     }
 
@@ -46,7 +51,7 @@ android {
         release {
             isMinifyEnabled = false
             isShrinkResources = false
-            signingConfig = if (keystorePropertiesFile.exists()) {
+            signingConfig = if (hasValidReleaseKey) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")

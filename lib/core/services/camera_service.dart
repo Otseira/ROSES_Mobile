@@ -75,6 +75,13 @@ class CameraService {
         return _processImage(file.path, outPath, now);
       });
 
+      // Bersihkan file capture mentah awal setelah berhasil diproses
+      try {
+        if (file.path != result && await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {}
+
       return File(result);
     } catch (_) {
       // Jika gagal proses, kembalikan foto asli (tanpa watermark)

@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/utils/image_compressor.dart';
 import '../../../core/widgets/photo_capture_screen.dart';
 
 class OnCallScreen extends ConsumerStatefulWidget {
@@ -94,10 +95,11 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
     if (photo == null) return null; // user batal
     final loc = await _locationService.getFastLocation();
     if (!loc.success) {
-      setState(() => _error = loc.error);
+      if (mounted) setState(() => _error = loc.error);
       return null;
     }
-    return (photo, loc);
+    final compressedPhoto = await ImageCompressor.compressFile(photo);
+    return (compressedPhoto, loc);
   }
 
   Future<void> _clockIn() async {
@@ -125,6 +127,7 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
         },
         files: {'foto_masuk': photo},
       );
+      if (!mounted) return;
       if (res['success'] == true) {
         await _setActive(res['data']?['waktu_mulai']?.toString());
       } else {
@@ -136,9 +139,9 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
           'sesi on-call',
         ])) {
           await _setActive(null);
-          setState(() => _status = 'Anda sudah dalam sesi On-Call aktif.');
+          if (mounted) setState(() => _status = 'Anda sudah dalam sesi On-Call aktif.');
         } else {
-          setState(() => _error = msg);
+          if (mounted) setState(() => _error = msg);
         }
       }
     } catch (e) {
@@ -150,9 +153,9 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
         'sesi on-call',
       ])) {
         await _setActive(null);
-        setState(() => _status = 'Anda sudah dalam sesi On-Call aktif.');
+        if (mounted) setState(() => _status = 'Anda sudah dalam sesi On-Call aktif.');
       } else {
-        setState(() => _error = msg);
+        if (mounted) setState(() => _error = msg);
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -178,13 +181,15 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
         },
         files: {'foto_keluar': photo},
       );
+      if (!mounted) return;
       if (res['success'] == true) {
         await _clearActive();
-        if (mounted)
+        if (mounted) {
           setState(
             () => _status =
                 'On-Call selesai. Total: ${res['data']?['total_jam'] ?? '-'} jam',
           );
+        }
       } else {
         final msg = res['message']?.toString() ?? '';
         if (_containsAny(msg, [
@@ -194,12 +199,14 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
           'terlebih dahulu',
         ])) {
           await _clearActive();
-          setState(
-            () => _status =
-                'Sesi On-Call tidak ditemukan (sudah diakhiri sebelumnya).',
-          );
+          if (mounted) {
+            setState(
+              () => _status =
+                  'Sesi On-Call tidak ditemukan (sudah diakhiri sebelumnya).',
+            );
+          }
         } else {
-          setState(() => _error = msg);
+          if (mounted) setState(() => _error = msg);
         }
       }
     } catch (e) {
@@ -211,12 +218,14 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
         'terlebih dahulu',
       ])) {
         await _clearActive();
-        setState(
-          () => _status =
-              'Sesi On-Call tidak ditemukan (sudah diakhiri sebelumnya).',
-        );
+        if (mounted) {
+          setState(
+            () => _status =
+                'Sesi On-Call tidak ditemukan (sudah diakhiri sebelumnya).',
+          );
+        }
       } else {
-        setState(() => _error = msg);
+        if (mounted) setState(() => _error = msg);
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -238,8 +247,8 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: _isOnCall
-                      ? AppColors.warning.withValues(alpha: 0.08)
-                      : AppColors.success.withValues(alpha: 0.08),
+                      ? AppColors.warning.withOpacity(0.08)
+                      : AppColors.success.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -277,7 +286,7 @@ class _OnCallScreenState extends ConsumerState<OnCallScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.06),
+                  color: AppColors.error.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(

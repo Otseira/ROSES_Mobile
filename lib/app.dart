@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/app_routes.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
-import 'features/home/screens/home_screen.dart';
+import 'features/home/screens/main_screen.dart';
 import 'core/services/branding_service.dart';
-import 'core/services/api_service.dart';
 
 class SiroApp extends ConsumerWidget {
   const SiroApp({super.key});
@@ -31,8 +29,8 @@ class SiroApp extends ConsumerWidget {
       return const SplashLoading();
     }
 
-    // ✅ Jika ada user → HomeScreen, jika tidak → LoginScreen
-    return authState.user != null ? const HomeScreen() : const LoginScreen();
+    // ✅ Jika ada user → MainScreen (dengan Floating Bottom Bar), jika tidak → LoginScreen
+    return authState.user != null ? const MainScreen() : const LoginScreen();
   }
 }
 
@@ -163,7 +161,7 @@ class _SplashLogo extends StatelessWidget {
         borderRadius: BorderRadius.circular(size * 0.26),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: Colors.black.withOpacity(0.12),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),

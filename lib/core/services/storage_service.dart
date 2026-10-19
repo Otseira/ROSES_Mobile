@@ -27,9 +27,17 @@ class StorageService {
   }
 
   static Future<Map<String, dynamic>?> getUserData() async {
-    final data = await _storage.read(key: AppConstants.userKey);
-    if (data == null) return null;
-    return jsonDecode(data) as Map<String, dynamic>;
+    try {
+      final data = await _storage.read(key: AppConstants.userKey);
+      if (data == null) return null;
+      final decoded = jsonDecode(data);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<void> deleteUserData() async {

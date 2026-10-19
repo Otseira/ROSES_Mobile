@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../constants/app_colors.dart';
 import '../services/camera_service.dart';
+import '../utils/image_compressor.dart';
 
 class PhotoCaptureScreen extends StatefulWidget {
   final String title;
@@ -109,18 +110,19 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
     );
   }
 
-  /// ✅ BARU: Handle lifecycle (kamera dilepas saat app ke background, di-init ulang saat kembali)
+  /// Handle lifecycle: kamera dilepas saat app ke background, di-init ulang saat kembali
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_camera.controller == null || !_camera.controller!.value.isInitialized)
-      return;
-
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
-      _camera.dispose();
-      if (mounted) setState(() => _ready = false);
+      if (_camera.controller != null && _camera.controller!.value.isInitialized) {
+        _camera.dispose();
+        if (mounted) setState(() => _ready = false);
+      }
     } else if (state == AppLifecycleState.resumed) {
-      _init();
+      if (!_ready) {
+        _init();
+      }
     }
   }
 
@@ -132,10 +134,12 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
     });
     try {
       final file = await _camera.capture();
-      if (mounted) Navigator.pop(context, file);
+      final compressed = await ImageCompressor.compressFile(file);
+      if (mounted) Navigator.pop(context, compressed);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = 'Gagal mengambil foto. Silakan coba lagi.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -227,7 +231,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.4),
+                              color: Colors.black.withOpacity(0.4),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(
@@ -269,7 +273,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.5),
+                            color: Colors.white.withOpacity(0.5),
                             width: 2,
                           ),
                         ),

@@ -32,15 +32,16 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
     try {
       final api = ref.read(apiServiceProvider);
       final res = await api.get('/lembur/validasi', query: {'status': _status});
+      if (!mounted) return;
       if (res['success'] == true) {
         setState(() => _items = (res['data'] as List?) ?? []);
       } else {
         setState(() => _error = res['message']?.toString());
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = e.toString());
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -51,6 +52,7 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
       if (c == null) return; // batal
       catatan = c;
     }
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
       final api = ref.read(apiServiceProvider);
@@ -58,6 +60,7 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
         '/lembur/validasi/$id',
         data: {'action': action, if (catatan != null) 'catatan': catatan},
       );
+      if (!mounted) return;
       if (res['success'] == true) {
         _fetch(); // refresh list
       } else {
@@ -67,43 +70,49 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
         });
       }
     } catch (e) {
-      setState(() {
-        _loading = false;
-        _error = e.toString();
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
+      }
     }
   }
 
   Future<String?> _askCatatan() async {
     final ctrl = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Alasan Penolakan'),
-        content: TextField(
-          controller: ctrl,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            hintText: 'Wajib diisi...',
-            alignLabelWithHint: true,
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Alasan Penolakan'),
+          content: TextField(
+            controller: ctrl,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'Wajib diisi...',
+              alignLabelWithHint: true,
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final t = ctrl.text.trim();
+                Navigator.pop(ctx, t.isEmpty ? 'Ditolak oleh atasan.' : t);
+              },
+              child: const Text('Tolak'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final t = ctrl.text.trim();
-              Navigator.pop(ctx, t.isEmpty ? 'Ditolak oleh atasan.' : t);
-            },
-            child: const Text('Tolak'),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      ctrl.dispose();
+    }
   }
 
   String _fmt(String? t) {
@@ -187,7 +196,7 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
                 : RefreshIndicator(
                     onRefresh: _fetch,
                     child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
                       itemCount: _items.length,
                       itemBuilder: (ctx, i) {
                         final it = _items[i] as Map;
@@ -208,7 +217,7 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
                                 children: [
                                   CircleAvatar(
                                     backgroundColor: AppColors.primary
-                                        .withValues(alpha: 0.1),
+                                        .withOpacity(0.1),
                                     child: Text(
                                       (it['pegawai_nama']?.toString() ?? '?')
                                           .substring(0, 1),
@@ -250,7 +259,7 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
                                           (it['jenis_lembur'] == 'On-Call'
                                                   ? AppColors.error
                                                   : AppColors.info)
-                                              .withValues(alpha: 0.1),
+                                              .withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(999),
                                     ),
                                     child: Text(
@@ -419,6 +428,8 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
               url,
               width: 56,
               height: 56,
+              cacheWidth: 150,
+              cacheHeight: 150,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) =>
                   const Icon(Icons.broken_image, size: 30),

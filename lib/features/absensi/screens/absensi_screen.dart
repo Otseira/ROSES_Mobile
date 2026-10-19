@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:camera/camera.dart';
@@ -8,6 +7,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/camera_service.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/utils/image_compressor.dart';
 
 class AbsensiScreen extends ConsumerStatefulWidget {
   final String type; // 'masuk' | 'pulang'
@@ -18,7 +18,8 @@ class AbsensiScreen extends ConsumerStatefulWidget {
   ConsumerState<AbsensiScreen> createState() => _AbsensiScreenState();
 }
 
-class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
+class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
+    with WidgetsBindingObserver {
   final _cameraService = CameraService();
   final _locationService = LocationService();
 
@@ -37,8 +38,25 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initCamera();
     _startLocationPreValidation();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      if (_cameraService.controller != null &&
+          _cameraService.controller!.value.isInitialized) {
+        _cameraService.dispose();
+        if (mounted) setState(() => _cameraReady = false);
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (!_cameraReady) {
+        _initCamera();
+      }
+    }
   }
 
   Future<void> _initCamera() async {
@@ -70,24 +88,12 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
   }
 
   Future<File> _compressFoto(String sourcePath) async {
-    final target =
-        '${Directory.systemTemp.path}/absen_${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-    try {
-      final result = await FlutterImageCompress.compressAndGetFile(
-        sourcePath,
-        target,
-        minWidth: 720,
-        quality: 65,
-      );
-
-      if (result != null) {
-        return File(result.path);
-      }
-      return File(sourcePath);
-    } catch (_) {
-      return File(sourcePath);
-    }
+    return ImageCompressor.compressFile(
+      File(sourcePath),
+      minWidth: 720,
+      minHeight: 720,
+      quality: 65,
+    );
   }
 
   Future<void> _submitAbsensi() async {
@@ -134,7 +140,13 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
       );
 
       if (response['success'] == true) {
-        _showSuccess(response);
+        if (mounted) {
+          setState(() {
+            _processing = false;
+            _status = '';
+          });
+          _showSuccess(response);
+        }
       } else {
         // ✅ NEW: Tangani kode khusus OUTSIDE_WINDOW
         if (response['code'] == 'OUTSIDE_WINDOW' && mounted) {
@@ -192,10 +204,10 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.1),
+                color: AppColors.warning.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.warning.withValues(alpha: 0.3),
+                  color: AppColors.warning.withOpacity(0.3),
                 ),
               ),
               child: const Row(
@@ -315,10 +327,10 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.1),
+                  color: AppColors.warning.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: AppColors.warning.withValues(alpha: 0.3),
+                    color: AppColors.warning.withOpacity(0.3),
                   ),
                 ),
                 child: const Row(
@@ -358,8 +370,8 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                 ),
                 decoration: BoxDecoration(
                   color: data!['status_kehadiran'] == 'Terlambat'
-                      ? AppColors.warning.withValues(alpha: 0.1)
-                      : AppColors.success.withValues(alpha: 0.1),
+                      ? AppColors.warning.withOpacity(0.1)
+                      : AppColors.success.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -405,6 +417,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _cameraService.dispose();
     super.dispose();
   }
@@ -441,7 +454,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.4),
+                              color: Colors.black.withOpacity(0.4),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(
@@ -508,8 +521,8 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: isLuarJadwal
-                              ? AppColors.warning.withValues(alpha: 0.7)
-                              : Colors.white.withValues(alpha: 0.5),
+                              ? AppColors.warning.withOpacity(0.7)
+                              : Colors.white.withOpacity(0.5),
                           width: 2,
                         ),
                       ),
@@ -518,7 +531,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                           'Posisikan wajah\ndi dalam lingkaran',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
+                            color: Colors.white.withOpacity(0.7),
                             fontSize: 12,
                           ),
                         ),
@@ -529,7 +542,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                   // Loading overlay
                   if (_processing)
                     Container(
-                      color: Colors.black.withValues(alpha: 0.7),
+                      color: Colors.black.withOpacity(0.7),
                       child: Center(
                         child: Card(
                           color: Colors.white,
@@ -597,10 +610,10 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                       padding: const EdgeInsets.all(12),
                       margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
-                        color: AppColors.warning.withValues(alpha: 0.08),
+                        color: AppColors.warning.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: AppColors.warning.withValues(alpha: 0.3),
+                          color: AppColors.warning.withOpacity(0.3),
                         ),
                       ),
                       child: const Row(
@@ -636,7 +649,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.06),
+                        color: AppColors.error.withOpacity(0.06),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(

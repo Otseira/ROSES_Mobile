@@ -45,7 +45,7 @@ class BrandingService {
   }
 
   /// Ambil terbaru dari server + perbarui cache (dipakai splash & login).
-  static Future<BrandingData> refresh(dynamic api) async {
+  static Future<BrandingData> refresh(ApiService api) async {
     try {
       final res = await api.get('/branding');
       if (res['success'] == true && res['data'] is Map) {

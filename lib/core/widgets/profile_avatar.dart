@@ -25,8 +25,8 @@ class ProfileAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: onDark
-            ? Colors.white.withValues(alpha: 0.2) // header hijau
-            : AppColors.primary.withValues(alpha: 0.12), // latar terang
+            ? Colors.white.withOpacity(0.2) // header hijau
+            : AppColors.primary.withOpacity(0.12), // latar terang
       ),
       alignment: Alignment.center,
       child: Text(
@@ -43,11 +43,14 @@ class ProfileAvatar extends StatelessWidget {
     if (url == null || url!.isEmpty) {
       inner = fallback;
     } else {
+      final cacheDim = (radius * 4).round();
       inner = Image.network(
         url!,
         fit: BoxFit.cover,
         width: radius * 2,
         height: radius * 2,
+        cacheWidth: cacheDim,
+        cacheHeight: cacheDim,
         loadingBuilder: (_, child, progress) =>
             progress == null ? child : fallback,
         errorBuilder: (_, __, ___) => fallback,

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../features/auth/screens/login_screen.dart';
-import '../../features/home/screens/home_screen.dart';
+import '../../features/home/screens/main_screen.dart';
 import '../../features/absensi/screens/absensi_screen.dart';
 import '../../features/lembur/screens/lembur_screen.dart';
 import '../../features/lembur/screens/oncall_screen.dart';
@@ -21,7 +21,7 @@ class AppRoutes {
 
   static Map<String, WidgetBuilder> routes = {
     login: (_) => const LoginScreen(),
-    home: (_) => const HomeScreen(),
+    home: (_) => const MainScreen(),
     absensiMasuk: (_) => const AbsensiScreen(type: 'masuk'),
     absensiPulang: (_) => const AbsensiScreen(type: 'pulang'),
     lembur: (_) => const LemburScreen(),

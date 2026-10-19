@@ -7,6 +7,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/camera_service.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/utils/image_compressor.dart';
 import '../../auth/providers/auth_provider.dart';
 
 class LemburScreen extends ConsumerStatefulWidget {
@@ -88,6 +89,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
 
     setState(() => _processing = true);
     try {
+      final compressedFoto = await ImageCompressor.compressFile(foto);
       final api = ref.read(apiServiceProvider);
       final res = await api.postMultipart(
         '/lembur/ekstensi',
@@ -97,7 +99,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
           'longitude': loc.longitude.toString(),
           'durasi_menit': form['durasi'].toString(),
         },
-        files: {'foto_masuk': foto},
+        files: {'foto_masuk': compressedFoto},
       );
       if (!mounted) return;
       if (res['success'] == true) {
@@ -137,6 +139,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
 
     setState(() => _processing = true);
     try {
+      final compressedFoto = await ImageCompressor.compressFile(foto);
       final api = ref.read(apiServiceProvider);
       final res = await api.postMultipart(
         '/lembur/oncall-masuk',
@@ -145,7 +148,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
           'latitude': loc.latitude.toString(),
           'longitude': loc.longitude.toString(),
         },
-        files: {'foto_masuk': foto},
+        files: {'foto_masuk': compressedFoto},
       );
       if (!mounted) return;
       if (res['success'] == true) {
@@ -217,6 +220,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
 
     setState(() => _processing = true);
     try {
+      final compressedFoto = await ImageCompressor.compressFile(foto);
       final api = ref.read(apiServiceProvider);
       final res = await api.postMultipart(
         '/lembur/oncall-keluar',
@@ -224,7 +228,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
           'latitude': loc.latitude.toString(),
           'longitude': loc.longitude.toString(),
         },
-        files: {'foto_keluar': foto},
+        files: {'foto_keluar': compressedFoto},
       );
       if (!mounted) return;
       if (res['success'] == true) {
@@ -248,166 +252,175 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
   // ================= DIALOG & WIDGET =================
   Future<Map<String, dynamic>?> _showFormEkstensi(
     Map<String, dynamic> shiftInfo,
-  ) {
+  ) async {
     final int maxMenit = (shiftInfo['max_menit'] as int?) ?? 0;
     final durasiC = TextEditingController(text: maxMenit.toString());
     final ketC = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
-    return showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.timer_outlined, color: AppColors.warning),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Ekstensi Shift',
-                style: TextStyle(fontWeight: FontWeight.bold),
+    try {
+      return await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.timer_outlined, color: AppColors.warning),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Ekstensi Shift',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.success.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Text(
+                      '⏱ Terisi otomatis: ${shiftInfo['jam_pulang']} s/d sekarang ($maxMenit menit). Boleh diubah, rentang 1 – $maxMenit menit. Jam dinas Anda akan diakhiri otomatis.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Durasi Lembur (1 – $maxMenit menit)',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: durasiC,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.timer_outlined),
+                      suffixText: 'menit',
+                    ),
+                    validator: (v) {
+                      final n = int.tryParse(v ?? '');
+                      if (n == null) return 'Wajib diisi angka';
+                      if (n < 1) return 'Minimal 1 menit';
+                      if (n > maxMenit) return 'Maksimal $maxMenit menit';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Keterangan Lembur',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: ketC,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      hintText: 'Contoh: Menyelesaikan laporan stok obat…',
+                      prefixIcon: Icon(Icons.edit_note),
+                    ),
+                    validator: (v) =>
+                        (v == null || v.isEmpty) ? 'Wajib diisi' : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(ctx, {
+                    'durasi': int.parse(durasiC.text),
+                    'keterangan': ketC.text.trim(),
+                  });
+                }
+              },
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              label: const Text('Lanjut Foto'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.warning,
+                foregroundColor: Colors.white,
               ),
             ),
           ],
         ),
-        content: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: AppColors.success.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Text(
-                    '⏱ Terisi otomatis: ${shiftInfo['jam_pulang']} s/d sekarang ($maxMenit menit). Boleh diubah, rentang 1 – $maxMenit menit. Jam dinas Anda akan diakhiri otomatis.',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Durasi Lembur (1 – $maxMenit menit)',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: durasiC,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.timer_outlined),
-                    suffixText: 'menit',
-                  ),
-                  validator: (v) {
-                    final n = int.tryParse(v ?? '');
-                    if (n == null) return 'Wajib diisi angka';
-                    if (n < 1) return 'Minimal 1 menit';
-                    if (n > maxMenit) return 'Maksimal $maxMenit menit';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Keterangan Lembur',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: ketC,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    hintText: 'Contoh: Menyelesaikan laporan stok obat…',
-                    prefixIcon: Icon(Icons.edit_note),
-                  ),
-                  validator: (v) =>
-                      (v == null || v.isEmpty) ? 'Wajib diisi' : null,
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(ctx, {
-                  'durasi': int.parse(durasiC.text),
-                  'keterangan': ketC.text.trim(),
-                });
-              }
-            },
-            icon: const Icon(Icons.arrow_forward, size: 18),
-            label: const Text('Lanjut Foto'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.warning,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      durasiC.dispose();
+      ketC.dispose();
+    }
   }
 
-  Future<String?> _showKeteranganDialog() {
+  Future<String?> _showKeteranganDialog() async {
     final ketC = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.phone_callback_outlined, color: AppColors.info),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'On-Call Masuk',
-                style: TextStyle(fontWeight: FontWeight.bold),
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.phone_callback_outlined, color: AppColors.info),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'On-Call Masuk',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: TextField(
+            controller: ketC,
+            maxLines: 3,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Kasus / alasan on-call…',
+              prefixIcon: Icon(Icons.edit_note),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(ctx, ketC.text.trim()),
+              icon: const Icon(Icons.arrow_forward, size: 18),
+              label: const Text('Lanjut Foto'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.info,
+                foregroundColor: Colors.white,
               ),
             ),
           ],
         ),
-        content: TextField(
-          controller: ketC,
-          maxLines: 3,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Kasus / alasan on-call…',
-            prefixIcon: Icon(Icons.edit_note),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.pop(ctx, ketC.text.trim()),
-            icon: const Icon(Icons.arrow_forward, size: 18),
-            label: const Text('Lanjut Foto'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.info,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      ketC.dispose();
+    }
   }
 
   Future<void> _showSuksesDialog(
@@ -429,7 +442,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.08),
+                  color: AppColors.success.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Row(
@@ -523,57 +536,41 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Lembur / On-Call'),
-        backgroundColor: AppColors.background,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
+        title: const Text(
+          'Lembur & On-Call',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        centerTitle: true,
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _processing
+      body: _loading || _processing
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
+              color: AppColors.primary,
               onRefresh: _cekOnCallAktif,
               child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(20),
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 90), // ekstra padding untuk floating navbar
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // ===== LEMBUR EKSTENSI =====
-                    _MenuLemburCard(
-                      icon: Icons.add_task_outlined,
-                      title: 'Ekstensi Shift',
-                      subtitle:
-                          'Akhiri jam dinas + catat lembur setelah shift (1x tekan)',
-                      color: AppColors.warning,
-                      onTap: _alurEkstensi,
-                    ),
-                    const SizedBox(height: 14),
-
-                    // ===== ON-CALL =====
-                    if (_onCallAktif == null)
-                      _MenuLemburCard(
-                        icon: Icons.phone_callback_outlined,
-                        title: 'On-Call Masuk',
-                        subtitle: 'Mulai tugas on-call (seperti absen masuk)',
-                        color: AppColors.info,
-                        onTap: _alurOnCallMasuk,
-                      )
-                    else
+                    // ===== 1. HERO STATUS AKTIF =====
+                    if (_onCallAktif != null) ...[
                       Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          color: AppColors.infoSoft,
+                          borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: AppColors.info.withValues(alpha: 0.4),
+                            color: AppColors.info.withOpacity(0.4),
+                            width: 1.2,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.04),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                              color: AppColors.info.withOpacity(0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
                             ),
                           ],
                         ),
@@ -583,39 +580,42 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                             Row(
                               children: [
                                 Container(
-                                  width: 52,
-                                  height: 52,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.info.withValues(
-                                      alpha: 0.1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(14),
+                                  width: 48,
+                                  height: 48,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
                                   ),
                                   child: const Icon(
-                                    Icons.phone_in_talk_outlined,
+                                    Icons.phone_in_talk_rounded,
                                     color: AppColors.info,
-                                    size: 26,
+                                    size: 24,
                                   ),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Text(
-                                        'On-Call Aktif',
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                        ),
+                                      const Row(
+                                        children: [
+                                          Text(
+                                            'On-Call Sedang Berjalan',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.textPrimary,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       const SizedBox(height: 3),
                                       Text(
-                                        'Masuk pukul ${DateFormat('HH:mm').format(DateTime.parse(_onCallAktif!['waktu_mulai_lembur']))}',
+                                        'Mulai pukul ${DateFormat('HH:mm').format(DateTime.parse(_onCallAktif!['waktu_mulai_lembur']))} WIB',
                                         style: const TextStyle(
                                           fontSize: 12,
-                                          color: AppColors.textHint,
+                                          fontWeight: FontWeight.w500,
+                                          color: AppColors.info,
                                         ),
                                       ),
                                     ],
@@ -626,12 +626,13 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                             const SizedBox(height: 14),
                             SizedBox(
                               width: double.infinity,
-                              height: 50,
+                              height: 48,
                               child: ElevatedButton.icon(
                                 onPressed: _alurOnCallKeluar,
-                                icon: const Icon(Icons.call_end_outlined),
+                                icon: const Icon(Icons.call_end_rounded, size: 20),
                                 label: const Text(
-                                  'On-Call Keluar (Selesaikan)',
+                                  'Selesaikan Tugas On-Call',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.info,
@@ -645,6 +646,187 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                           ],
                         ),
                       ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // ===== 2. KARTU MENU AKSI LEMBUR =====
+                    const Text(
+                      'Pilih Jenis Penugasan',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Kartu 1: Ekstensi Shift
+                    _MenuLemburCard(
+                      icon: Icons.add_task_rounded,
+                      title: 'Ekstensi Shift',
+                      subtitle:
+                          'Melanjutkan tugas setelah jam kerja shift reguler berakhir.',
+                      color: AppColors.warning,
+                      bgColor: AppColors.warningSoft,
+                      onTap: _alurEkstensi,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Kartu 2: On-Call Masuk (bila belum aktif)
+                    if (_onCallAktif == null)
+                      _MenuLemburCard(
+                        icon: Icons.phone_callback_rounded,
+                        title: 'On-Call Masuk',
+                        subtitle:
+                            'Panggilan darurat / tugas khusus di luar jadwal kerja.',
+                        color: AppColors.info,
+                        bgColor: AppColors.infoSoft,
+                        onTap: _alurOnCallMasuk,
+                      ),
+
+                    const SizedBox(height: 24),
+
+                    // ===== 3. KETERANGAN / LEGENDA DI BAGIAN BAWAH =====
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.02),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                size: 16,
+                                color: AppColors.textPrimary,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Keterangan Status Tugas',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Hijau
+                          Row(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.success,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'Hijau',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Expanded(
+                                child: Text(
+                                  ': Sudah selesai / disetujui atasan',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Kuning
+                          Row(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.warning,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'Kuning',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.warning,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Expanded(
+                                child: Text(
+                                  ': Sedang aktif / menunggu verifikasi atasan',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Merah
+                          Row(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.error,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'Merah',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.error,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Expanded(
+                                child: Text(
+                                  ': Belum absen keluar / pengajuan ditolak',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -658,69 +840,75 @@ class _MenuLemburCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final Color color;
+  final Color bgColor;
   final VoidCallback onTap;
+
   const _MenuLemburCard({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.color,
+    required this.bgColor,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(14),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withOpacity(0.3), width: 1.2),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: color, size: 26),
               ),
-              child: Icon(icon, color: color, size: 26),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textHint,
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        height: 1.3,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const Icon(Icons.chevron_right, color: AppColors.textHint),
-          ],
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: AppColors.textHint,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -822,7 +1010,7 @@ class _CameraPageState extends State<_CameraPage> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.4),
+                  color: Colors.black.withOpacity(0.4),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(

@@ -28,6 +28,14 @@ class AppColors {
   static const Color error = Color(0xFFEF4444);
   static const Color info = Color(0xFF3B82F6);
 
+  // Soft tints (untuk chip, badge, dan kartu modern dengan kontras tinggi)
+  static const Color primarySoft = Color(0xFFE8F5E9);
+  static const Color secondarySoft = Color(0xFFFFF3E0);
+  static const Color successSoft = Color(0xFFECFDF5);
+  static const Color errorSoft = Color(0xFFFEF2F2);
+  static const Color infoSoft = Color(0xFFEFF6FF);
+  static const Color warningSoft = Color(0xFFFFFBEB);
+
   // Neutral
   static const Color border = Color(0xFFE5E7EB);
   static const Color divider = Color(0xFFF3F4F6);

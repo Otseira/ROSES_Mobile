@@ -43,8 +43,7 @@ class _RosterScreenState extends ConsumerState<RosterScreen> {
         query: {'bulan': _selected.month, 'tahun': _selected.year},
       );
 
-      // Cetak FULL JSON ke console (untuk diagnosa via terminal)
-      debugPrint('[ROSTER] RESPONSE = ${jsonEncode(res)}');
+      if (!mounted) return;
 
       if (res['success'] == true) {
         final items = _extractAndNormalize(res['data']);
@@ -71,9 +70,9 @@ class _RosterScreenState extends ConsumerState<RosterScreen> {
         setState(() => _error = res['message']?.toString());
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      if (mounted) setState(() => _error = e.toString());
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -329,8 +328,7 @@ class _RosterScreenState extends ConsumerState<RosterScreen> {
                                 width: 48,
                                 height: 48,
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(
-                                    alpha: 0.08,
+                                  color: AppColors.primary.withOpacity(0.08,
                                   ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),

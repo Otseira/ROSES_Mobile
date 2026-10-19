@@ -16,6 +16,7 @@ class ApiService {
         baseUrl: AppConstants.baseUrl,
         connectTimeout: AppConstants.connectTimeout,
         receiveTimeout: AppConstants.receiveTimeout,
+        sendTimeout: AppConstants.connectTimeout,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',

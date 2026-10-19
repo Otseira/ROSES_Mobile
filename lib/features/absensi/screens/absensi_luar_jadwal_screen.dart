@@ -23,10 +23,10 @@ class AbsensiLuarJadwalScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.08),
+                color: AppColors.warning.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: AppColors.warning.withValues(alpha: 0.25),
+                  color: AppColors.warning.withOpacity(0.25),
                 ),
               ),
               child: const Row(

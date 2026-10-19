@@ -66,15 +66,25 @@ class AuthService {
     try {
       final response = await _api.get('/me');
       if (response['success'] == true) {
-        // defensif: pastikan 'data' benar-benar Map sebelum cast
         final raw = response['data'];
         if (raw is Map<String, dynamic>) {
           await StorageService.saveUserData(raw);
           return UserModel.fromJson(raw);
         }
       }
-    } catch (_) {
-      await StorageService.clearAll();
+    } catch (e) {
+      // Jika 401 Unauthorized / sesi habis, bersihkan data lokal
+      final errorMsg = e.toString().toLowerCase();
+      if (errorMsg.contains('401') || errorMsg.contains('sesi anda berakhir')) {
+        await StorageService.clearAll();
+        return null;
+      }
+
+      // Jika error koneksi/jaringan (offline), fallback ke data cache lokal
+      final cached = await StorageService.getUserData();
+      if (cached != null) {
+        return UserModel.fromJson(cached);
+      }
     }
     return null;
   }
