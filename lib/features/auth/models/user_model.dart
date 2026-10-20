@@ -6,6 +6,8 @@ class UserModel {
   final String? email;
   final String? nomorWhatsapp;
   final String? unitKerja;
+  final int? unitKerjaId;
+  final String? jenisLembur; // 'dibayar' atau 'ganti_jam'
   final String role;
   final String? fotoProfil;
   final List<ManagedUnit> managesUnits; // <-- TAMBAHAN BARU
@@ -18,6 +20,8 @@ class UserModel {
     this.email,
     this.nomorWhatsapp,
     this.unitKerja,
+    this.unitKerjaId,
+    this.jenisLembur,
     required this.role,
     this.fotoProfil,
     this.managesUnits = const [], // <-- TAMBAHAN BARU
@@ -40,6 +44,8 @@ class UserModel {
       email: json['email'],
       nomorWhatsapp: json['nomor_whatsapp'],
       unitKerja: json['unit_kerja'],
+      unitKerjaId: json['unit_kerja_id'] is int ? json['unit_kerja_id'] : int.tryParse(json['unit_kerja_id']?.toString() ?? ''),
+      jenisLembur: json['jenis_lembur']?.toString() ?? 'dibayar',
       role: json['role'] ?? 'staf',
       fotoProfil: json['foto_profil'],
       managesUnits: managedUnits, // <-- TAMBAHAN BARU
@@ -54,6 +60,8 @@ class UserModel {
     'email': email,
     'nomor_whatsapp': nomorWhatsapp,
     'unit_kerja': unitKerja,
+    'unit_kerja_id': unitKerjaId,
+    'jenis_lembur': jenisLembur,
     'role': role,
     'foto_profil': fotoProfil,
     'manages_units': managesUnits.map((u) => u.toJson()).toList(),
@@ -69,6 +77,10 @@ class UserModel {
       role == 'penanggung_jawab' ||
       role == 'hrd' ||
       role == 'superadmin';
+
+  // Kebijakan Lembur Unit
+  bool get isLemburDibayar => (jenisLembur ?? 'dibayar') == 'dibayar';
+  bool get isGantiJam => (jenisLembur ?? 'dibayar') == 'ganti_jam';
 
   // Role Manajemen (bisa kelola multi-unit)
   bool get isManajemen =>

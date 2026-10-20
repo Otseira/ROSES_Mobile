@@ -29,6 +29,11 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
   String? _errorRiwayat;
   String _filterStatus = 'Semua'; // 'Semua', 'Pending', 'Disetujui', 'Ditolak'
 
+  // ===== BANK JAM LEMBUR & PENGAMBILAN JAM =====
+  Map<String, dynamic>? _bankJam;
+  List<dynamic> _riwayatAmbilJam = [];
+  int _tabRiwayat = 0; // 0 = Lembur/On-Call, 1 = Pengambilan Jam
+
   @override
   void initState() {
     super.initState();
@@ -39,7 +44,31 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
     await Future.wait([
       _cekOnCallAktif(),
       _fetchRiwayatLembur(),
+      _fetchBankJam(),
+      _fetchRiwayatAmbilJam(),
     ]);
+  }
+
+  Future<void> _fetchBankJam() async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final res = await api.get('/lembur/bank-jam');
+      if (!mounted) return;
+      if (res['success'] == true) {
+        setState(() => _bankJam = res['data']);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _fetchRiwayatAmbilJam() async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final res = await api.get('/lembur/riwayat-ambil-jam');
+      if (!mounted) return;
+      if (res['success'] == true) {
+        setState(() => _riwayatAmbilJam = (res['data'] as List?) ?? []);
+      }
+    } catch (_) {}
   }
 
   Future<void> _cekOnCallAktif() async {
@@ -438,6 +467,157 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
     }).toList();
   }
 
+  List<dynamic> get _filteredRiwayatAmbilJam {
+    if (_filterStatus == 'Semua') return _riwayatAmbilJam;
+    return _riwayatAmbilJam.where((item) {
+      final s = (item['status']?.toString() ?? '').toLowerCase();
+      return s == _filterStatus.toLowerCase();
+    }).toList();
+  }
+
+  Future<void> _showFormPengambilanJam() async {
+    final saldoTersedia = _bankJam?['saldo_menit_tersedia'] ?? 0;
+    if (saldoTersedia < 15) {
+      _snack('Saldo bank jam Anda tidak mencukupi (minimal 15 menit).');
+      return;
+    }
+
+    final res = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _PengambilanJamDialog(
+        saldoTersediaMenit: saldoTersedia,
+        saldoTersediaTeks:
+            _bankJam?['saldo_tersedia_teks'] ?? '$saldoTersedia mnt',
+      ),
+    );
+
+    if (res == true && mounted) {
+      _refreshAll();
+      _snack('Pengajuan pengambilan waktu lembur berhasil dikirim.');
+    }
+  }
+
+  Widget _buildBankJamCard() {
+    final isGantiJam = _bankJam?['is_ganti_jam'] == true;
+    if (!isGantiJam) return const SizedBox.shrink();
+
+    final saldoTeks = _bankJam?['saldo_tersedia_teks'] ?? '0 menit';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFF4F46E5), // Indigo
+            Color(0xFF7C3AED), // Purple
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4F46E5).withOpacity(0.25),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.account_balance_wallet_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Bank Jam Lembur',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Kompensasi Jam',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Saldo Jam Tersedia',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            saldoTeks,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              onPressed: _showFormPengambilanJam,
+              icon: const Icon(Icons.hourglass_top_rounded, size: 18),
+              label: const Text(
+                'Ajukan Pengambilan Waktu',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF4F46E5),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _fmtWaktu(String? t) {
     if (t == null || t.isEmpty) return '-';
     try {
@@ -567,6 +747,9 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                       const SizedBox(height: 16),
                     ],
 
+                    // ===== BANK JAM LEMBUR (KOMPENSASI JAM) =====
+                    _buildBankJamCard(),
+
                     // ===== 2. KARTU MENU AKSI LEMBUR =====
                     const Text(
                       'Pilih Jenis Penugasan',
@@ -618,7 +801,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        if (_riwayatLembur.isNotEmpty)
+                        if (_riwayatLembur.isNotEmpty || _riwayatAmbilJam.isNotEmpty)
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -629,7 +812,9 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              '${_riwayatLembur.length} total',
+                              _tabRiwayat == 0
+                                  ? '${_riwayatLembur.length} total'
+                                  : '${_riwayatAmbilJam.length} total',
                               style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -640,6 +825,70 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
+
+                    // Sub-tab untuk unit Ganti Jam (Lembur vs Pengambilan Jam)
+                    if (_bankJam?['is_ganti_jam'] == true) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setState(() => _tabRiwayat = 0),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: _tabRiwayat == 0
+                                      ? AppColors.primary
+                                      : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  'Lembur & On-Call (${_riwayatLembur.length})',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: _tabRiwayat == 0
+                                        ? Colors.white
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setState(() => _tabRiwayat = 1),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: _tabRiwayat == 1
+                                      ? const Color(0xFF4F46E5)
+                                      : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  'Pengambilan Jam (${_riwayatAmbilJam.length})',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: _tabRiwayat == 1
+                                        ? Colors.white
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                    ],
 
                     // Filter Status Chips: Semua, Pending, Disetujui, Ditolak
                     SingleChildScrollView(
@@ -682,93 +931,110 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                     const SizedBox(height: 12),
 
                     // Riwayat Content
-                    if (_loadingRiwayat)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: CircularProgressIndicator(),
-                        ),
-                      )
-                    else if (_errorRiwayat != null)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Column(
-                          children: [
-                            const Icon(
-                              Icons.error_outline_rounded,
-                              color: AppColors.error,
-                              size: 32,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _errorRiwayat!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 12,
+                    () {
+                      final isGantiJamRiwayat =
+                          _tabRiwayat == 1 && _bankJam?['is_ganti_jam'] == true;
+                      final activeList =
+                          isGantiJamRiwayat ? _filteredRiwayatAmbilJam : filtered;
+
+                      if (_loadingRiwayat) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+
+                      if (_errorRiwayat != null) {
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.error_outline_rounded,
                                 color: AppColors.error,
+                                size: 32,
                               ),
-                            ),
-                            const SizedBox(height: 10),
-                            TextButton.icon(
-                              onPressed: _fetchRiwayatLembur,
-                              icon: const Icon(Icons.refresh, size: 16),
-                              label: const Text(
-                                'Coba Lagi',
-                                style: TextStyle(fontSize: 12),
+                              const SizedBox(height: 8),
+                              Text(
+                                _errorRiwayat!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.error,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else if (filtered.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 28,
-                          horizontal: 16,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.history_toggle_off_rounded,
-                              size: 44,
-                              color: AppColors.textHint.withOpacity(0.5),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              _filterStatus == 'Semua'
-                                  ? 'Belum ada pengajuan lembur atau on-call.'
-                                  : 'Tidak ada pengajuan dengan status "$_filterStatus".',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: AppColors.textSecondary,
-                                fontWeight: FontWeight.w500,
+                              const SizedBox(height: 10),
+                              TextButton.icon(
+                                onPressed: _fetchRiwayatLembur,
+                                icon: const Icon(Icons.refresh, size: 16),
+                                label: const Text(
+                                  'Coba Lagi',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      ListView.separated(
+                            ],
+                          ),
+                        );
+                      }
+
+                      if (activeList.isEmpty) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 28,
+                            horizontal: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.history_toggle_off_rounded,
+                                size: 44,
+                                color: AppColors.textHint.withOpacity(0.5),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                _filterStatus == 'Semua'
+                                    ? (isGantiJamRiwayat
+                                        ? 'Belum ada pengajuan pengambilan waktu lembur.'
+                                        : 'Belum ada pengajuan lembur atau on-call.')
+                                    : 'Tidak ada pengajuan dengan status "$_filterStatus".',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemCount: activeList.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 10),
                         itemBuilder: (ctx, index) {
-                          final item = filtered[index] as Map;
-                          return _buildRiwayatCard(item);
+                          final item = activeList[index] as Map;
+                          return isGantiJamRiwayat
+                              ? _buildRiwayatAmbilJamCard(item)
+                              : _buildRiwayatCard(item);
                         },
-                      ),
+                      );
+                    }(),
 
                     const SizedBox(height: 20),
 
@@ -1182,6 +1448,234 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                   _buildFotoThumb(fotoKeluar, 'Foto Selesai'),
                 ],
               ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRiwayatAmbilJamCard(Map item) {
+    final status = (item['status']?.toString() ?? 'Pending');
+    final isDisetujui = status.toLowerCase() == 'disetujui';
+    final isDitolak = status.toLowerCase() == 'ditolak';
+
+    final Color statusColor = isDisetujui
+        ? AppColors.success
+        : (isDitolak ? AppColors.error : AppColors.warning);
+
+    final Color statusBg = isDisetujui
+        ? AppColors.successSoft
+        : (isDitolak ? AppColors.errorSoft : AppColors.warningSoft);
+
+    final IconData statusIcon = isDisetujui
+        ? Icons.check_circle_rounded
+        : (isDitolak ? Icons.cancel_rounded : Icons.access_time_filled_rounded);
+
+    final bool isMasukLambat = item['tipe_pengambilan'] == 'masuk_diperlambat';
+    final String tanggal = item['tanggal']?.toString() ?? '-';
+    final String durasi = item['durasi_teks']?.toString() ??
+        '${item['durasi_menit'] ?? '-'} mnt';
+    final String keterangan = item['keterangan']?.toString() ?? '-';
+    final String? catatan = item['catatan_validasi']?.toString();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isMasukLambat
+                      ? Colors.amber.shade50
+                      : Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isMasukLambat
+                          ? Icons.login_rounded
+                          : Icons.logout_rounded,
+                      size: 14,
+                      color: isMasukLambat
+                          ? Colors.amber.shade700
+                          : Colors.blue.shade700,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      isMasukLambat
+                          ? 'Masuk Diperlambat'
+                          : 'Pulang Dipercepat',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isMasukLambat
+                            ? Colors.amber.shade700
+                            : Colors.blue.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: statusColor.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(statusIcon, size: 13, color: statusColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: statusColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today_rounded,
+                      size: 14,
+                      color: AppColors.textHint,
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Tanggal: ',
+                      style:
+                          TextStyle(fontSize: 11, color: AppColors.textHint),
+                    ),
+                    Expanded(
+                      child: Text(
+                        tanggal,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.timelapse_rounded,
+                      size: 14,
+                      color: AppColors.textHint,
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Durasi: ',
+                      style:
+                          TextStyle(fontSize: 11, color: AppColors.textHint),
+                    ),
+                    Expanded(
+                      child: Text(
+                        durasi,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF4F46E5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.notes_rounded,
+                size: 14,
+                color: AppColors.textHint,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  keterangan,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (catatan != null && catatan.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDitolak ? AppColors.errorSoft : AppColors.primarySoft,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.comment_outlined,
+                    size: 14,
+                    color: isDitolak ? AppColors.error : AppColors.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Catatan Atasan: $catatan',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color:
+                            isDitolak ? AppColors.error : AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ],
@@ -1675,6 +2169,428 @@ class _CameraPageState extends State<_CameraPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PengambilanJamDialog extends ConsumerStatefulWidget {
+  final int saldoTersediaMenit;
+  final String saldoTersediaTeks;
+
+  const _PengambilanJamDialog({
+    required this.saldoTersediaMenit,
+    required this.saldoTersediaTeks,
+  });
+
+  @override
+  ConsumerState<_PengambilanJamDialog> createState() =>
+      _PengambilanJamDialogState();
+}
+
+class _PengambilanJamDialogState extends ConsumerState<_PengambilanJamDialog> {
+  DateTime _tanggal = DateTime.now().add(const Duration(days: 1));
+  String _tipe = 'masuk_diperlambat';
+  int _durasiMenit = 60;
+  late final TextEditingController _keteranganCtrl;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _keteranganCtrl = TextEditingController();
+    if (_durasiMenit > widget.saldoTersediaMenit) {
+      _durasiMenit = widget.saldoTersediaMenit;
+    }
+    if (_durasiMenit < 15 && widget.saldoTersediaMenit >= 15) {
+      _durasiMenit = 15;
+    }
+  }
+
+  @override
+  void dispose() {
+    _keteranganCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final ket = _keteranganCtrl.text.trim();
+    if (ket.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Alasan pengambilan waktu wajib diisi.')),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      final api = ref.read(apiServiceProvider);
+      final res = await api.post('/lembur/ambil-jam', data: {
+        'tanggal_dinas': DateFormat('yyyy-MM-dd').format(_tanggal),
+        'tipe_pengambilan': _tipe,
+        'durasi_menit': _durasiMenit,
+        'keterangan': ket,
+      });
+
+      if (!mounted) return;
+      if (res['success'] == true) {
+        Navigator.pop(context, true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res['message']?.toString() ?? 'Gagal mengajukan.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().replaceAll('Exception: ', '').trim(),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _tanggal,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 90)),
+    );
+    if (picked != null && mounted) {
+      setState(() => _tanggal = picked);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final options = [15, 30, 45, 60, 90, 120, 180, 240]
+        .where((m) => m <= widget.saldoTersediaMenit)
+        .toList();
+    if (!options.contains(widget.saldoTersediaMenit) &&
+        widget.saldoTersediaMenit > 0) {
+      options.add(widget.saldoTersediaMenit);
+      options.sort();
+    }
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4F46E5).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.hourglass_top_rounded,
+                      color: Color(0xFF4F46E5),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Ambil Waktu Lembur',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Kompensasi Jam Kerja',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Info Saldo
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Sisa Saldo Jam:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      widget.saldoTersediaTeks,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF4F46E5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Tanggal Dinas
+              const Text(
+                'Tanggal Dinas',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: _pickDate,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        DateFormat('EEEE, dd MMMM yyyy', 'id_ID')
+                            .format(_tanggal),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Icon(Icons.calendar_today_rounded, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Pilihan Tipe
+              const Text(
+                'Pilihan Kompensasi',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () =>
+                          setState(() => _tipe = 'masuk_diperlambat'),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _tipe == 'masuk_diperlambat'
+                              ? Colors.amber.shade50
+                              : Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _tipe == 'masuk_diperlambat'
+                                ? Colors.amber.shade600
+                                : Colors.grey.shade300,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.login_rounded,
+                              size: 20,
+                              color: _tipe == 'masuk_diperlambat'
+                                  ? Colors.amber.shade700
+                                  : Colors.grey,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Masuk Lambat',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: _tipe == 'masuk_diperlambat'
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: _tipe == 'masuk_diperlambat'
+                                    ? Colors.amber.shade900
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () =>
+                          setState(() => _tipe = 'pulang_dipercepat'),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _tipe == 'pulang_dipercepat'
+                              ? Colors.blue.shade50
+                              : Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _tipe == 'pulang_dipercepat'
+                                ? Colors.blue.shade600
+                                : Colors.grey.shade300,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.logout_rounded,
+                              size: 20,
+                              color: _tipe == 'pulang_dipercepat'
+                                  ? Colors.blue.shade700
+                                  : Colors.grey,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Pulang Cepat',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: _tipe == 'pulang_dipercepat'
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: _tipe == 'pulang_dipercepat'
+                                    ? Colors.blue.shade900
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Durasi Menit
+              Text(
+                'Durasi: $_durasiMenit Menit (${_durasiMenit >= 60 ? '${_durasiMenit ~/ 60} jam ${_durasiMenit % 60 > 0 ? '${_durasiMenit % 60} mnt' : ''}' : '$_durasiMenit menit'})',
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: options.map((m) {
+                  final isSel = _durasiMenit == m;
+                  return ChoiceChip(
+                    label: Text('$m mnt', style: const TextStyle(fontSize: 11)),
+                    selected: isSel,
+                    selectedColor: const Color(0xFF4F46E5),
+                    labelStyle: TextStyle(
+                      color: isSel ? Colors.white : AppColors.textPrimary,
+                      fontWeight:
+                          isSel ? FontWeight.bold : FontWeight.normal,
+                    ),
+                    onSelected: (_) => setState(() => _durasiMenit = m),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // Alasan / Keterangan
+              const Text(
+                'Alasan Pengambilan',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _keteranganCtrl,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: 'Contoh: Penggantian lembur IGD tanggal...',
+                  hintStyle: const TextStyle(fontSize: 12),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.border),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Tombol Batal & Kirim
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed:
+                          _submitting ? null : () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Batal'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _submitting ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4F46E5),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Kirim'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
