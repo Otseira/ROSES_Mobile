@@ -79,40 +79,12 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
     }
   }
 
-  Future<String?> _askCatatan() async {
-    final ctrl = TextEditingController();
-    try {
-      return await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Alasan Penolakan'),
-          content: TextField(
-            controller: ctrl,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Wajib diisi...',
-              alignLabelWithHint: true,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final t = ctrl.text.trim();
-                Navigator.pop(ctx, t.isEmpty ? 'Ditolak oleh atasan.' : t);
-              },
-              child: const Text('Tolak'),
-            ),
-          ],
-        ),
-      );
-    } finally {
-      ctrl.dispose();
-    }
+  Future<String?> _askCatatan() {
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _AlasanPenolakanDialog(),
+    );
   }
 
   String _fmt(String? t) {
@@ -441,6 +413,59 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AlasanPenolakanDialog extends StatefulWidget {
+  const _AlasanPenolakanDialog();
+
+  @override
+  State<_AlasanPenolakanDialog> createState() => _AlasanPenolakanDialogState();
+}
+
+class _AlasanPenolakanDialogState extends State<_AlasanPenolakanDialog> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text('Alasan Penolakan'),
+      content: TextField(
+        controller: _ctrl,
+        maxLines: 3,
+        autofocus: true,
+        decoration: const InputDecoration(
+          hintText: 'Wajib diisi...',
+          alignLabelWithHint: true,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Batal'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final t = _ctrl.text.trim();
+            Navigator.pop(context, t.isEmpty ? 'Ditolak oleh atasan.' : t);
+          },
+          child: const Text('Tolak'),
+        ),
+      ],
     );
   }
 }
