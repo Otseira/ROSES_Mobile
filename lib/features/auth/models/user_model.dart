@@ -72,19 +72,23 @@ class UserModel {
   bool get isSuperadmin => role == 'superadmin';
   bool get canAbsen => role != 'superadmin';
 
-  bool get canValidasi =>
+  bool get isManajer => role == 'manajer' || role == 'manager';
+
+  // Role Manajemen (bisa kelola multi-unit)
+  bool get isManajemen =>
       role == 'kepala_unit' ||
       role == 'penanggung_jawab' ||
+      role == 'manajer' ||
+      role == 'manager';
+
+  bool get canValidasi =>
+      isManajemen ||
       role == 'hrd' ||
       role == 'superadmin';
 
   // Kebijakan Lembur Unit
   bool get isLemburDibayar => (jenisLembur ?? 'dibayar') == 'dibayar';
   bool get isGantiJam => (jenisLembur ?? 'dibayar') == 'ganti_jam';
-
-  // Role Manajemen (bisa kelola multi-unit)
-  bool get isManajemen =>
-      role == 'kepala_unit' || role == 'penanggung_jawab' || role == 'manajer';
 
   // Role Direktur (akses global)
   bool get isDirektur => role == 'direktur';

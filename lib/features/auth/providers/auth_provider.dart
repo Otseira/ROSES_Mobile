@@ -35,6 +35,8 @@ final freshProfileProvider = FutureProvider.autoDispose<UserModel?>((
             email: fresh.email,
             nomorWhatsapp: fresh.nomorWhatsapp,
             unitKerja: fresh.unitKerja ?? stored.unitKerja,
+            unitKerjaId: fresh.unitKerjaId ?? stored.unitKerjaId,
+            jenisLembur: fresh.jenisLembur ?? stored.jenisLembur,
             role: fresh.role,
             fotoProfil: stored.fotoProfil,
             managesUnits: fresh.managesUnits,

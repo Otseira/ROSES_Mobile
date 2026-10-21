@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/api_service.dart';
+import '../../auth/providers/auth_provider.dart';
 
 class ValidasiLemburScreen extends ConsumerStatefulWidget {
   const ValidasiLemburScreen({super.key});
@@ -23,6 +24,7 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
   bool _loading = true;
   String? _error;
   String _status = 'Pending'; // tab status: Pending | Disetujui | Ditolak
+  int? _selectedUnitId; // null = semua unit yang dikelola
 
   @override
   void initState() {
@@ -39,23 +41,22 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
       final api = ref.read(apiServiceProvider);
       dynamic res;
 
+      final queryParams = <String, dynamic>{
+        'status': _status,
+        if (_selectedUnitId != null) 'unit_id': _selectedUnitId,
+      };
+
       if (_activeMenu == 0) {
         // Validasi Lembur (Ekstensi Shift)
-        res = await api.get('/lembur/validasi', query: {
-          'status': _status,
-          'jenis_lembur': 'Ekstensi Shift',
-        });
+        queryParams['jenis_lembur'] = 'Ekstensi Shift';
+        res = await api.get('/lembur/validasi', query: queryParams);
       } else if (_activeMenu == 1) {
         // Validasi On-Call
-        res = await api.get('/lembur/validasi', query: {
-          'status': _status,
-          'jenis_lembur': 'On-Call',
-        });
+        queryParams['jenis_lembur'] = 'On-Call';
+        res = await api.get('/lembur/validasi', query: queryParams);
       } else {
         // Validasi Pengambilan Waktu Lembur (Ganti Jam Kerja)
-        res = await api.get('/lembur/validasi-pengambilan', query: {
-          'status': _status,
-        });
+        res = await api.get('/lembur/validasi-pengambilan', query: queryParams);
       }
 
       if (!mounted) return;
@@ -147,6 +148,11 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final storedUser = ref.watch(authStateProvider).value;
+    final freshUser = ref.watch(freshProfileProvider).value;
+    final user = freshUser ?? storedUser;
+    final hasMultipleUnits = user != null && user.managesUnits.length > 1;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -215,6 +221,63 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
             ),
           ),
           const Divider(height: 1),
+
+          // ================= FILTER UNIT (Untuk Manajer Multi-Unit) =================
+          if (hasMultipleUnits) ...[
+            Container(
+              color: Colors.white,
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Semua Unit', style: TextStyle(fontSize: 11)),
+                      selected: _selectedUnitId == null,
+                      selectedColor: AppColors.primary,
+                      labelStyle: TextStyle(
+                        color: _selectedUnitId == null
+                            ? Colors.white
+                            : AppColors.textSecondary,
+                        fontWeight: _selectedUnitId == null
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                      onSelected: (_) {
+                        if (_selectedUnitId == null) return;
+                        setState(() => _selectedUnitId = null);
+                        _fetch();
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    for (final u in user.managesUnits) ...[
+                      ChoiceChip(
+                        label: Text(u.namaUnit, style: const TextStyle(fontSize: 11)),
+                        selected: _selectedUnitId == u.id,
+                        selectedColor: AppColors.primary,
+                        labelStyle: TextStyle(
+                          color: _selectedUnitId == u.id
+                              ? Colors.white
+                              : AppColors.textSecondary,
+                          fontWeight: _selectedUnitId == u.id
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                        onSelected: (_) {
+                          if (_selectedUnitId == u.id) return;
+                          setState(() => _selectedUnitId = u.id);
+                          _fetch();
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+          ],
 
           // ================= DAFTAR ITEM VALIDASI =================
           Expanded(
