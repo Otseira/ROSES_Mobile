@@ -26,6 +26,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isPulangDone = false;
   String? _pulangTime;
 
+  int? _saldoBankJamMenit;
+  String? _saldoBankJamTeks;
+  bool _isLoadingBankJam = false;
+
   @override
   void initState() {
     super.initState();
@@ -37,12 +41,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
 
     _fetchTodayStatus();
+    _fetchBankJam();
   }
 
   @override
   void dispose() {
     _clockTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _fetchBankJam() async {
+    try {
+      final storedUser = ref.read(authStateProvider).value;
+      final freshUser = ref.read(freshProfileProvider).value;
+      final user = freshUser ?? storedUser;
+
+      // Hanya ambil data bank jam jika unit kerja berjenis kompensasi ganti jam
+      if (user != null && !user.isGantiJam) return;
+
+      if (mounted) setState(() => _isLoadingBankJam = true);
+      final api = ref.read(apiServiceProvider);
+      final res = await api.get('/lembur/bank-jam');
+      if (!mounted) return;
+      if (res['success'] == true && res['data'] is Map) {
+        final d = res['data'] as Map;
+        final saldo = d['saldo_menit_tersedia'] is int
+            ? d['saldo_menit_tersedia'] as int
+            : int.tryParse(d['saldo_menit_tersedia']?.toString() ?? '') ?? 0;
+        final teks = d['saldo_tersedia_teks']?.toString() ?? '$saldo menit';
+        setState(() {
+          _saldoBankJamMenit = saldo;
+          _saldoBankJamTeks = teks;
+          _isLoadingBankJam = false;
+        });
+      } else {
+        if (mounted) setState(() => _isLoadingBankJam = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingBankJam = false);
+    }
   }
 
   Future<void> _fetchTodayStatus() async {
@@ -101,6 +138,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(freshProfileProvider, (prev, next) {
+      if (next.value?.isGantiJam == true && _saldoBankJamMenit == null) {
+        _fetchBankJam();
+      }
+    });
+
     final storedUser = ref.watch(authStateProvider).value;
     final freshUser = ref.watch(freshProfileProvider).value;
     final user = freshUser ?? storedUser;
@@ -116,7 +159,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           onRefresh: () async {
             ref.invalidate(authStateProvider);
             ref.invalidate(freshProfileProvider);
-            await _fetchTodayStatus();
+            await Future.wait([
+              _fetchTodayStatus(),
+              _fetchBankJam(),
+            ]);
           },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(
@@ -387,6 +433,165 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
               ),
+
+              // === 2.5 KARTU TOTAL SALDO BANK JAM (HANYA MUNCUL JIKA UNIT GANTI JAM) ===
+              if (user != null && user.isGantiJam)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: () {
+                        if (widget.onNavigateTab != null) {
+                          widget.onNavigateTab!(2); // Switch ke tab Lembur (Bank Jam)
+                        }
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF3730A3), Color(0xFF4F46E5)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF4F46E5).withOpacity(0.28),
+                              blurRadius: 16,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(18),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Icon(
+                                Icons.account_balance_wallet_rounded,
+                                color: Colors.white,
+                                size: 26,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'TOTAL SALDO BANK JAM',
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.85),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.6,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 7,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Text(
+                                          'Ganti Jam',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  if (_isLoadingBankJam)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 4),
+                                      child: SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                                      textBaseline: TextBaseline.alphabetic,
+                                      children: [
+                                        Text(
+                                          '${_saldoBankJamMenit ?? 0}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: -0.5,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 5),
+                                        const Text(
+                                          'Menit',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        if ((_saldoBankJamMenit ?? 0) >= 60) ...[
+                                          const SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              '(${_saldoBankJamTeks ?? ''})',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: Colors.white.withOpacity(0.85),
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Kompensasi jam yang siap digunakan',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.8),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              color: Colors.white.withOpacity(0.7),
+                              size: 15,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
 
               // === 3. DUA TOMBOL UTAMA: ABSEN MASUK & ABSEN PULANG ===
               SliverToBoxAdapter(
