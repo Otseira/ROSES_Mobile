@@ -69,32 +69,46 @@ class UserModel {
 
   // ===== HELPER METHODS =====
 
-  bool get isSuperadmin => role == 'superadmin';
-  bool get canAbsen => role != 'superadmin';
+  String get normalizedRole =>
+      role.toLowerCase().replaceAll(' ', '_').trim();
 
-  bool get isManajer => role == 'manajer' || role == 'manager';
+  bool get isSuperadmin => normalizedRole == 'superadmin';
+  bool get canAbsen => normalizedRole != 'superadmin';
+
+  bool get isManajer =>
+      normalizedRole == 'manajer' ||
+      normalizedRole == 'manager' ||
+      normalizedRole.contains('manajer') ||
+      normalizedRole.contains('manager');
 
   // Role Manajemen (bisa kelola multi-unit)
   bool get isManajemen =>
-      role == 'kepala_unit' ||
-      role == 'penanggung_jawab' ||
-      role == 'manajer' ||
-      role == 'manager';
+      isManajer ||
+      normalizedRole == 'kepala_unit' ||
+      normalizedRole == 'penanggung_jawab' ||
+      normalizedRole == 'kepala_instalasi' ||
+      normalizedRole == 'ka_unit' ||
+      normalizedRole == 'ka_instalasi' ||
+      normalizedRole.contains('kepala') ||
+      normalizedRole.contains('penanggung') ||
+      normalizedRole.contains('supervisor') ||
+      normalizedRole.contains('spv');
 
   bool get canValidasi =>
       isManajemen ||
-      role == 'hrd' ||
-      role == 'superadmin';
+      hasManagedUnits ||
+      normalizedRole == 'hrd' ||
+      normalizedRole == 'superadmin';
 
   // Kebijakan Lembur Unit
   bool get isLemburDibayar => (jenisLembur ?? 'dibayar') == 'dibayar';
   bool get isGantiJam => (jenisLembur ?? 'dibayar') == 'ganti_jam';
 
   // Role Direktur (akses global)
-  bool get isDirektur => role == 'direktur';
+  bool get isDirektur => normalizedRole == 'direktur';
 
   // Role HRD
-  bool get isHrd => role == 'hrd';
+  bool get isHrd => normalizedRole == 'hrd';
 
   // Akses Global (Direktur, HRD, atau Superadmin)
   bool get hasGlobalAccess => isDirektur || isHrd || isSuperadmin;

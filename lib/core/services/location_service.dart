@@ -32,21 +32,31 @@ class LocationService {
       return LocationResult.failure('GPS tidak aktif. Silakan aktifkan GPS.');
     }
 
-    // 3. Mock detection
+    // 3. Mock detection (Anti-Fake GPS)
     final mockResult = await MockLocationDetector.detect();
     if (mockResult.isMocked) {
       return LocationResult(
         success: false,
         isMocked: true,
         mockDetails: mockResult.details,
-        error:
-            'Terdeteksi penggunaan lokasi palsu (Fake GPS).\nRisiko: ${mockResult.riskLevel}',
+        error: mockResult.userFriendlyMessage,
       );
     }
 
     // 4. ✅ GPS ADAPTIF
     try {
       final position = await _getAdaptivePosition();
+
+      // Verifikasi flag isMocked bawaan Android Provider
+      if (position.isMocked == true) {
+        return LocationResult(
+          success: false,
+          isMocked: true,
+          mockDetails: {'geolocator': true},
+          error:
+              'Fitur Lokasi Tiruan (Mock Location / Fake GPS) terdeteksi aktif pada perangkat Anda.',
+        );
+      }
 
       // 5. Accuracy check — batas atas 50m
       if (position.accuracy > _maxAcceptableAccuracy) {
@@ -71,7 +81,6 @@ class LocationService {
   }
 
   /// ✅ GPS ADAPTIF — kompatibel SEMUA versi geolocator
-  /// (tanpa named parameter, sama seperti mock_location_detector.dart)
   ///
   /// 1. Ambil posisi pertama (warm start, timeout 10 dtk).
   /// 2. Akurasi ≤ 20 m → LANGSUNG return (0 dtk tambahan).
@@ -136,11 +145,41 @@ class LocationService {
       return LocationResult.failure('GPS tidak aktif. Silakan aktifkan GPS.');
     }
 
-    // 3. SATU kali ambil posisi (cepat)
+    // 3. Mock detection (Anti-Fake GPS)
+    final mockResult = await MockLocationDetector.detect();
+    if (mockResult.isMocked) {
+      return LocationResult(
+        success: false,
+        isMocked: true,
+        mockDetails: mockResult.details,
+        error: mockResult.userFriendlyMessage,
+      );
+    }
+
+    // 4. SATU kali ambil posisi (cepat)
     try {
       final position = await Geolocator.getCurrentPosition().timeout(
         const Duration(seconds: 8),
       );
+
+      // Verifikasi flag isMocked bawaan Android Provider
+      if (position.isMocked == true) {
+        return LocationResult(
+          success: false,
+          isMocked: true,
+          mockDetails: {'geolocator': true},
+          error:
+              'Fitur Lokasi Tiruan (Mock Location / Fake GPS) terdeteksi aktif pada perangkat Anda.',
+        );
+      }
+
+      // Batasi akurasi maksimal 50 meter
+      if (position.accuracy > _maxAcceptableAccuracy) {
+        return LocationResult.failure(
+          'Akurasi GPS rendah (${position.accuracy.round()}m). Pindah ke area terbuka atau dekat jendela.',
+        );
+      }
+
       return LocationResult(
         success: true,
         latitude: position.latitude,

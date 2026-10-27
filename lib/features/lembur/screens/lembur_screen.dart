@@ -10,6 +10,8 @@ import '../../../core/services/camera_service.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/utils/image_compressor.dart';
 import '../../auth/providers/auth_provider.dart';
+import 'validasi_lembur_screen.dart';
+import 'riwayat_lembur_screen.dart';
 
 class LemburScreen extends ConsumerStatefulWidget {
   const LemburScreen({super.key});
@@ -123,10 +125,98 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
   Future<dynamic> _ambilLokasi() async {
     final loc = await _locationService.getFastLocation();
     if (!loc.success) {
-      if (mounted) _snack(loc.error ?? 'Lokasi gagal diambil.');
+      if (mounted) {
+        if (loc.isMocked) {
+          _showMockDialog(loc.mockDetails, loc.error);
+        } else {
+          _snack(loc.error ?? 'Lokasi gagal diambil.');
+        }
+      }
       return null;
     }
     return loc;
+  }
+
+  void _showMockDialog(Map<String, bool>? details, [String? message]) {
+    final labels = {
+      'mock_enabled': 'Fitur Mock Location aktif',
+      'mock_apps': 'Aplikasi Fake GPS terpasang',
+      'geolocator': 'Lokasi dilaporkan tiruan (Mock)',
+      'device_rooted': 'Perangkat di-root / Jailbreak',
+      'emulator': 'Aplikasi di emulator/PC',
+      'developer_mode': 'Opsi Pengembang (Developer) aktif',
+      'consistency': 'Lonjakan koordinat tidak wajar',
+    };
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(Icons.gps_off, color: AppColors.error, size: 48),
+        title: const Text(
+          'Lokasi Palsu Terdeteksi',
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message ??
+                  'Sistem mendeteksi penggunaan Fake GPS.\nPengajuan lembur tidak dapat dilanjutkan.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13),
+            ),
+            if (details != null) ...[
+              const SizedBox(height: 16),
+              ...details.entries.map(
+                (e) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      Icon(
+                        e.value
+                            ? Icons.warning_rounded
+                            : Icons.check_circle_rounded,
+                        size: 16,
+                        color: e.value ? AppColors.error : AppColors.success,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          labels[e.key] ?? e.key,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight:
+                                e.value ? FontWeight.w600 : FontWeight.normal,
+                            color: e.value
+                                ? AppColors.error
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        e.value ? "Terdeteksi" : "Aman",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: e.value ? AppColors.error : AppColors.success,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Mengerti'),
+          ),
+        ],
+      ),
+    );
   }
 
   // ================= EKSTENSI SHIFT (1x tekan, durasi default otomatis) =================
@@ -144,9 +234,10 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
       _snack('Anda tidak memiliki jadwal shift hari ini. Gunakan On-Call.');
       return;
     }
-    if ((shiftInfo['max_menit'] ?? 0) < 1) {
+    final int maxMenit = (shiftInfo['max_menit'] as int?) ?? 0;
+    if (maxMenit < 30) {
       _snack(
-        'Ekstensi shift baru bisa setelah jam pulang (${shiftInfo['jam_pulang']}).',
+        'Ekstensi shift baru dapat diajukan minimal 30 menit setelah jam pulang (${shiftInfo['jam_pulang']}).',
       );
       return;
     }
@@ -175,6 +266,8 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
           'latitude': loc.latitude.toString(),
           'longitude': loc.longitude.toString(),
           'durasi_menit': form['durasi'].toString(),
+          'accuracy': loc.accuracy?.toString() ?? '',
+          'is_mock': loc.isMocked ? '1' : '0',
         },
         files: {'foto_masuk': compressedFoto},
       );
@@ -224,6 +317,8 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
           'keterangan': ket,
           'latitude': loc.latitude.toString(),
           'longitude': loc.longitude.toString(),
+          'accuracy': loc.accuracy?.toString() ?? '',
+          'is_mock': loc.isMocked ? '1' : '0',
         },
         files: {'foto_masuk': compressedFoto},
       );
@@ -305,6 +400,8 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
         fields: {
           'latitude': loc.latitude.toString(),
           'longitude': loc.longitude.toString(),
+          'accuracy': loc.accuracy?.toString() ?? '',
+          'is_mock': loc.isMocked ? '1' : '0',
         },
         files: {'foto_keluar': compressedFoto},
       );
@@ -476,7 +573,8 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
   }
 
   Future<void> _showFormPengambilanJam() async {
-    final saldoTersedia = _bankJam?['saldo_menit_tersedia'] ?? 0;
+    final saldoTersedia =
+        (_bankJam?['saldo_menit_tersedia'] as num?)?.toInt() ?? 0;
     if (saldoTersedia < 15) {
       _snack('Saldo bank jam Anda tidak mencukupi (minimal 15 menit).');
       return;
@@ -487,8 +585,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
       barrierDismissible: false,
       builder: (_) => _PengambilanJamDialog(
         saldoTersediaMenit: saldoTersedia,
-        saldoTersediaTeks:
-            _bankJam?['saldo_tersedia_teks'] ?? '$saldoTersedia mnt',
+        saldoTersediaTeks: '$saldoTersedia Menit',
       ),
     );
 
@@ -502,7 +599,9 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
     final isGantiJam = _bankJam?['is_ganti_jam'] == true;
     if (!isGantiJam) return const SizedBox.shrink();
 
-    final saldoTeks = _bankJam?['saldo_tersedia_teks'] ?? '0 menit';
+    final saldoMenit =
+        (_bankJam?['saldo_menit_tersedia'] as num?)?.toInt() ?? 0;
+    final saldoTeks = '$saldoMenit Menit';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
@@ -576,7 +675,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
           ),
           const SizedBox(height: 14),
           const Text(
-            'Saldo Jam Tersedia',
+            'Saldo Bank Jam (Menit)',
             style: TextStyle(
               color: Colors.white70,
               fontSize: 12,
@@ -630,6 +729,11 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredRiwayat;
+    final authUser = ref.watch(authNotifierProvider).user;
+    final storedUser = ref.watch(authStateProvider).value;
+    final freshUser = ref.watch(freshProfileProvider).value;
+    final user = freshUser ?? storedUser ?? authUser;
+    final canValidasi = user?.canValidasi == true;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -639,6 +743,21 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         centerTitle: true,
+        actions: [
+          if (canValidasi)
+            IconButton(
+              icon: const Icon(Icons.fact_check_rounded),
+              tooltip: 'Validasi Lembur',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ValidasiLemburScreen(),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
       body: _loading || _processing
           ? const Center(child: CircularProgressIndicator())
@@ -653,6 +772,61 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // ===== 0. BANNER VALIDASI LEMBUR (KHUSUS MANAJER / ATASAN) =====
+                    if (canValidasi) ...[
+                      InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ValidasiLemburScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F766E).withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: const Color(0xFF0F766E).withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.fact_check_outlined,
+                                color: Color(0xFF0F766E),
+                                size: 20,
+                              ),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Validasi Lembur & On-Call Tim',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0F766E),
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 13,
+                                color: Color(0xFF0F766E),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
                     // ===== 1. HERO STATUS AKTIF =====
                     if (_onCallAktif != null) ...[
                       Container(
@@ -787,41 +961,77 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                       const SizedBox(height: 12),
                     ],
 
-                    const SizedBox(height: 14),
+                    // Kartu 3: Riwayat Lembur (Periode Kerja 24 - 23)
+                    _MenuLemburCard(
+                      icon: Icons.calendar_month_rounded,
+                      title: 'Riwayat Lembur (Periode 24 – 23)',
+                      subtitle:
+                          'Lihat riwayat lembur & bank jam per periode cut-off bulanan.',
+                      color: const Color(0xFF4F46E5),
+                      bgColor: const Color(0xFF4F46E5).withOpacity(0.08),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RiwayatLemburScreen(
+                              bankJam: _bankJam,
+                              riwayatLemburAwal: _riwayatLembur,
+                              riwayatAmbilJamAwal: _riwayatAmbilJam,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 18),
 
                     // ===== 3. RIWAYAT PENGAJUAN LEMBUR & ON-CALL =====
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Riwayat Pengajuan',
+                          'Aktivitas Terkini',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        if (_riwayatLembur.isNotEmpty || _riwayatAmbilJam.isNotEmpty)
-                          Container(
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => RiwayatLemburScreen(
+                                  bankJam: _bankJam,
+                                  riwayatLemburAwal: _riwayatLembur,
+                                  riwayatAmbilJamAwal: _riwayatAmbilJam,
+                                ),
+                              ),
+                            );
+                          },
+                          style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
+                              horizontal: 6,
                               vertical: 2,
                             ),
-                            decoration: BoxDecoration(
-                              color: AppColors.primarySoft,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              _tabRiwayat == 0
-                                  ? '${_riwayatLembur.length} total'
-                                  : '${_riwayatAmbilJam.length} total',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primary,
-                              ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          icon: const Icon(
+                            Icons.calendar_month_rounded,
+                            size: 15,
+                            color: Color(0xFF4F46E5),
+                          ),
+                          label: const Text(
+                            'Semua Riwayat (24–23)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF4F46E5),
                             ),
                           ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -1021,18 +1231,68 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                         );
                       }
 
-                      return ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: activeList.length,
-                        separatorBuilder: (_, __) =>
+                      final previewList = activeList.take(3).toList();
+
+                      return Column(
+                        children: [
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: previewList.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (ctx, index) {
+                              final item = previewList[index] as Map;
+                              return isGantiJamRiwayat
+                                  ? _buildRiwayatAmbilJamCard(item)
+                                  : _buildRiwayatCard(item);
+                            },
+                          ),
+                          if (activeList.length > 3) ...[
                             const SizedBox(height: 10),
-                        itemBuilder: (ctx, index) {
-                          final item = activeList[index] as Map;
-                          return isGantiJamRiwayat
-                              ? _buildRiwayatAmbilJamCard(item)
-                              : _buildRiwayatCard(item);
-                        },
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => RiwayatLemburScreen(
+                                        bankJam: _bankJam,
+                                        riwayatLemburAwal: _riwayatLembur,
+                                        riwayatAmbilJamAwal: _riwayatAmbilJam,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.calendar_month_rounded,
+                                  size: 16,
+                                ),
+                                label: Text(
+                                  'Lihat Semua Riwayat (${activeList.length} Pengajuan)',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF4F46E5),
+                                  side: BorderSide(
+                                    color: const Color(0xFF4F46E5)
+                                        .withOpacity(0.35),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 11,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       );
                     }(),
 
@@ -1904,7 +2164,7 @@ class _EkstensiFormDialogState extends State<_EkstensiFormDialog> {
                   ),
                 ),
                 child: Text(
-                  '⏱ Terisi otomatis: ${widget.shiftInfo['jam_pulang']} s/d sekarang ($maxMenit menit). Boleh diubah, rentang 1 – $maxMenit menit. Jam dinas Anda akan diakhiri otomatis.',
+                  '⏱ Terisi otomatis: ${widget.shiftInfo['jam_pulang']} s/d sekarang ($maxMenit menit). Boleh diubah, rentang 30 – $maxMenit menit. Jam dinas Anda akan diakhiri otomatis.',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -1913,7 +2173,7 @@ class _EkstensiFormDialogState extends State<_EkstensiFormDialog> {
               ),
               const SizedBox(height: 16),
               Text(
-                'Durasi Lembur (1 – $maxMenit menit)',
+                'Durasi Lembur (30 – $maxMenit menit)',
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
@@ -1930,7 +2190,7 @@ class _EkstensiFormDialogState extends State<_EkstensiFormDialog> {
                 validator: (v) {
                   final n = int.tryParse(v ?? '');
                   if (n == null) return 'Wajib diisi angka';
-                  if (n < 1) return 'Minimal 1 menit';
+                  if (n < 30) return 'Minimal 30 menit';
                   if (n > maxMenit) return 'Maksimal $maxMenit menit';
                   return null;
                 },
@@ -2342,14 +2602,14 @@ class _PengambilanJamDialogState extends ConsumerState<_PengambilanJamDialog> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Sisa Saldo Jam:',
+                      'Sisa Saldo Bank Jam:',
                       style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
                       ),
                     ),
                     Text(
-                      widget.saldoTersediaTeks,
+                      '${widget.saldoTersediaMenit} Menit',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,

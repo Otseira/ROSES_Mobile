@@ -120,7 +120,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
             _processing = false;
             _status = '';
           });
-          if (loc.isMocked) _showMockDialog(loc.mockDetails);
+          if (loc.isMocked) _showMockDialog(loc.mockDetails, loc.error);
         }
         return;
       }
@@ -134,6 +134,8 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
         fields: {
           'latitude': loc.latitude.toString(),
           'longitude': loc.longitude.toString(),
+          'accuracy': loc.accuracy?.toString() ?? '',
+          'is_mock': loc.isMocked ? '1' : '0',
           'mode': widget.mode, // ✅ kirim mode
         },
         files: {'foto': compressed},
@@ -241,7 +243,17 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
     );
   }
 
-  void _showMockDialog(Map<String, bool>? details) {
+  void _showMockDialog(Map<String, bool>? details, [String? message]) {
+    final labels = {
+      'mock_enabled': 'Fitur Mock Location aktif',
+      'mock_apps': 'Aplikasi Fake GPS terpasang',
+      'geolocator': 'Lokasi dilaporkan tiruan (Mock)',
+      'device_rooted': 'Perangkat di-root / Jailbreak',
+      'emulator': 'Aplikasi di emulator/PC',
+      'developer_mode': 'Opsi Pengembang (Developer) aktif',
+      'consistency': 'Lonjakan koordinat tidak wajar',
+    };
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -254,10 +266,11 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Sistem mendeteksi penggunaan Fake GPS.\nAbsensi tidak dapat dilanjutkan.',
+            Text(
+              message ??
+                  'Sistem mendeteksi penggunaan Fake GPS.\nAbsensi tidak dapat dilanjutkan.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14),
+              style: const TextStyle(fontSize: 13),
             ),
             if (details != null) ...[
               const SizedBox(height: 16),
@@ -267,15 +280,26 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
                   child: Row(
                     children: [
                       Icon(
-                        e.value ? Icons.warning : Icons.check_circle,
+                        e.value ? Icons.warning_rounded : Icons.check_circle_rounded,
                         size: 16,
                         color: e.value ? AppColors.error : AppColors.success,
                       ),
                       const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          labels[e.key] ?? e.key,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: e.value ? FontWeight.w600 : FontWeight.normal,
+                            color: e.value ? AppColors.error : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
                       Text(
-                        '${e.key}: ${e.value ? "Terdeteksi" : "Aman"}',
+                        e.value ? "Terdeteksi" : "Aman",
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
                           color: e.value ? AppColors.error : AppColors.success,
                         ),
                       ),

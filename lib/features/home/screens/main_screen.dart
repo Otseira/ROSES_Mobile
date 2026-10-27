@@ -35,9 +35,10 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authUser = ref.watch(authNotifierProvider).user;
     final storedUser = ref.watch(authStateProvider).value;
     final freshUser = ref.watch(freshProfileProvider).value;
-    final user = freshUser ?? storedUser;
+    final user = freshUser ?? storedUser ?? authUser;
     final canValidasi = user?.canValidasi == true;
 
     final screens = [

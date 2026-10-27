@@ -55,6 +55,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Paksa provider profil memuat ulang data user dengan token baru,
       // supaya Home/Profil langsung menampilkan nama & unit kerja.
       ref.invalidate(authStateProvider);
+      ref.invalidate(freshProfileProvider);
       try {
         await ref.read(authStateProvider.future);
       } catch (_) {

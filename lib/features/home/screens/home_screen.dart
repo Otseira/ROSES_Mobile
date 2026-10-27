@@ -144,9 +144,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     });
 
+    final authUser = ref.watch(authNotifierProvider).user;
     final storedUser = ref.watch(authStateProvider).value;
     final freshUser = ref.watch(freshProfileProvider).value;
-    final user = freshUser ?? storedUser;
+    final user = freshUser ?? storedUser ?? authUser;
 
     final dateFormat = DateFormat('EEEE, d MMMM yyyy', 'id_ID');
     final timeFormat = DateFormat('HH:mm:ss');

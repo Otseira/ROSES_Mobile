@@ -65,9 +65,20 @@
         <package android:name="com.locationchanger" />
         <package android:name="com.rosteam.gpsemulator" />
         <package android:name="com.incorporateapps.fakegps.fre" />
+        <package android:name="com.incorporateapps.fakegps" />
         <package android:name="com.gpslocation.mock" />
         <package android:name="com.mockgpslocation" />
         <package android:name="com.gps.emulator" />
         <package android:name="com.gpsjoystick" />
+        <package android:name="com.hopeway.fakegps" />
+        <package android:name="com.gsmartstudio.fakegps" />
+        <package android:name="com.app.fakegps" />
+        <package android:name="com.evezzon.fakegps" />
+        <package android:name="com.ninja.gogps" />
+        <package android:name="com.theappninjas.fakegpsjoystick" />
+        <package android:name="com.lkr.fakegps" />
+        <package android:name="ru.gavrikov.mocklocations" />
+        <package android:name="com.marlon.floating.fake.location" />
+        <package android:name="com.xposed.fakemygps" />
     </queries>
 </manifest>
