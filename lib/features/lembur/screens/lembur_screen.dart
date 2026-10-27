@@ -933,7 +933,7 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
 
                     // Kartu 1: Ekstensi Shift
                     _MenuLemburCard(
@@ -947,21 +947,42 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Kartu 2: On-Call Masuk (bila belum aktif)
-                    if (_onCallAktif == null) ...[
-                      _MenuLemburCard(
-                        icon: Icons.phone_callback_rounded,
-                        title: 'On-Call Masuk',
-                        subtitle:
-                            'Panggilan darurat / tugas khusus di luar jadwal kerja.',
-                        color: AppColors.info,
-                        bgColor: AppColors.infoSoft,
-                        onTap: _alurOnCallMasuk,
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+                    // Kartu 2: On-Call (Masuk / Selesai jika sedang aktif)
+                    _MenuLemburCard(
+                      icon: _onCallAktif != null
+                          ? Icons.phone_in_talk_rounded
+                          : Icons.phone_callback_rounded,
+                      title: _onCallAktif != null
+                          ? 'Selesaikan Tugas On-Call'
+                          : 'On-Call Masuk',
+                      subtitle: _onCallAktif != null
+                          ? 'On-Call aktif sejak ${DateFormat('HH:mm').format(DateTime.parse(_onCallAktif!['waktu_mulai_lembur']))} WIB. Ketuk untuk absen selesai.'
+                          : 'Panggilan darurat / tugas khusus di luar jadwal kerja.',
+                      color: _onCallAktif != null
+                          ? AppColors.error
+                          : AppColors.info,
+                      bgColor: _onCallAktif != null
+                          ? AppColors.errorSoft
+                          : AppColors.infoSoft,
+                      onTap: _onCallAktif != null
+                          ? _alurOnCallKeluar
+                          : _alurOnCallMasuk,
+                    ),
+                    const SizedBox(height: 12),
 
-                    // Kartu 3: Riwayat Lembur (Periode Kerja 24 - 23)
+                    // Kartu 3: Pengajuan Pengambilan Jam
+                    _MenuLemburCard(
+                      icon: Icons.hourglass_top_rounded,
+                      title: 'Pengajuan Pengambilan Lembur',
+                      subtitle:
+                          'Gunakan saldo bank jam untuk kompensasi jam kerja.',
+                      color: const Color(0xFF7C3AED),
+                      bgColor: const Color(0xFF7C3AED).withOpacity(0.08),
+                      onTap: _showFormPengambilanJam,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Kartu 4: Cek Riwayat Lembur (Periode Kerja 24 - 23)
                     _MenuLemburCard(
                       icon: Icons.calendar_month_rounded,
                       title: 'Riwayat Lembur (Periode 24 – 23)',
@@ -983,322 +1004,9 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                       },
                     ),
 
-                    const SizedBox(height: 18),
-
-                    // ===== 3. RIWAYAT PENGAJUAN LEMBUR & ON-CALL =====
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Aktivitas Terkini',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => RiwayatLemburScreen(
-                                  bankJam: _bankJam,
-                                  riwayatLemburAwal: _riwayatLembur,
-                                  riwayatAmbilJamAwal: _riwayatAmbilJam,
-                                ),
-                              ),
-                            );
-                          },
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          icon: const Icon(
-                            Icons.calendar_month_rounded,
-                            size: 15,
-                            color: Color(0xFF4F46E5),
-                          ),
-                          label: const Text(
-                            'Semua Riwayat (24–23)',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF4F46E5),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Sub-tab untuk unit Ganti Jam (Lembur vs Pengambilan Jam)
-                    if (_bankJam?['is_ganti_jam'] == true) ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              onTap: () => setState(() => _tabRiwayat = 0),
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: _tabRiwayat == 0
-                                      ? AppColors.primary
-                                      : Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'Lembur & On-Call (${_riwayatLembur.length})',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: _tabRiwayat == 0
-                                        ? Colors.white
-                                        : AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () => setState(() => _tabRiwayat = 1),
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: _tabRiwayat == 1
-                                      ? const Color(0xFF4F46E5)
-                                      : Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'Pengambilan Jam (${_riwayatAmbilJam.length})',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: _tabRiwayat == 1
-                                        ? Colors.white
-                                        : AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-
-                    // Filter Status Chips: Semua, Pending, Disetujui, Ditolak
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: ['Semua', 'Pending', 'Disetujui', 'Ditolak']
-                            .map((s) {
-                          final isSelected = _filterStatus == s;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(s, style: const TextStyle(fontSize: 12)),
-                              selected: isSelected,
-                              selectedColor: AppColors.primary,
-                              labelStyle: TextStyle(
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: isSelected
-                                    ? Colors.white
-                                    : AppColors.textSecondary,
-                              ),
-                              backgroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                  color: isSelected
-                                      ? AppColors.primary
-                                      : AppColors.border,
-                                ),
-                              ),
-                              onSelected: (_) {
-                                setState(() => _filterStatus = s);
-                              },
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Riwayat Content
-                    () {
-                      final isGantiJamRiwayat =
-                          _tabRiwayat == 1 && _bankJam?['is_ganti_jam'] == true;
-                      final activeList =
-                          isGantiJamRiwayat ? _filteredRiwayatAmbilJam : filtered;
-
-                      if (_loadingRiwayat) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 24),
-                            child: CircularProgressIndicator(),
-                          ),
-                        );
-                      }
-
-                      if (_errorRiwayat != null) {
-                        return Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Column(
-                            children: [
-                              const Icon(
-                                Icons.error_outline_rounded,
-                                color: AppColors.error,
-                                size: 32,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _errorRiwayat!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.error,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              TextButton.icon(
-                                onPressed: _fetchRiwayatLembur,
-                                icon: const Icon(Icons.refresh, size: 16),
-                                label: const Text(
-                                  'Coba Lagi',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      if (activeList.isEmpty) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 28,
-                            horizontal: 16,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.history_toggle_off_rounded,
-                                size: 44,
-                                color: AppColors.textHint.withOpacity(0.5),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                _filterStatus == 'Semua'
-                                    ? (isGantiJamRiwayat
-                                        ? 'Belum ada pengajuan pengambilan waktu lembur.'
-                                        : 'Belum ada pengajuan lembur atau on-call.')
-                                    : 'Tidak ada pengajuan dengan status "$_filterStatus".',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textSecondary,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      final previewList = activeList.take(3).toList();
-
-                      return Column(
-                        children: [
-                          ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: previewList.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 10),
-                            itemBuilder: (ctx, index) {
-                              final item = previewList[index] as Map;
-                              return isGantiJamRiwayat
-                                  ? _buildRiwayatAmbilJamCard(item)
-                                  : _buildRiwayatCard(item);
-                            },
-                          ),
-                          if (activeList.length > 3) ...[
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => RiwayatLemburScreen(
-                                        bankJam: _bankJam,
-                                        riwayatLemburAwal: _riwayatLembur,
-                                        riwayatAmbilJamAwal: _riwayatAmbilJam,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(
-                                  Icons.calendar_month_rounded,
-                                  size: 16,
-                                ),
-                                label: Text(
-                                  'Lihat Semua Riwayat (${activeList.length} Pengajuan)',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF4F46E5),
-                                  side: BorderSide(
-                                    color: const Color(0xFF4F46E5)
-                                        .withOpacity(0.35),
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 11,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      );
-                    }(),
-
                     const SizedBox(height: 20),
 
-                    // ===== 4. KETERANGAN / LEGENDA DI BAGIAN BAWAH =====
+                    // ===== 3. KETENTUAN LEMBUR & INFORMASI SISTEM =====
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -1320,12 +1028,12 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                             children: [
                               Icon(
                                 Icons.info_outline_rounded,
-                                size: 16,
-                                color: AppColors.textPrimary,
+                                size: 18,
+                                color: AppColors.primary,
                               ),
                               SizedBox(width: 8),
                               Text(
-                                'Keterangan Status Tugas',
+                                'Ketentuan Lembur & Bank Jam',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
@@ -1335,106 +1043,25 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-
-                          // Hijau
-                          Row(
-                            children: [
-                              Container(
-                                width: 12,
-                                height: 12,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.success,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              const Text(
-                                'Hijau',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.success,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              const Expanded(
-                                child: Text(
-                                  ': Sudah selesai / disetujui atasan',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          _buildKetentuanItem(
+                            icon: Icons.timer_outlined,
+                            title: 'Batas Minimal Lembur 30 Menit',
+                            desc:
+                                'Absen ekstensi shift dapat dilakukan setelah 30 menit shift dinas berakhir. Durasi lembur tetap dihitung penuh sejak jam kepulangan shift reguler.',
                           ),
-                          const SizedBox(height: 8),
-
-                          // Kuning
-                          Row(
-                            children: [
-                              Container(
-                                width: 12,
-                                height: 12,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.warning,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              const Text(
-                                'Kuning',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.warning,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              const Expanded(
-                                child: Text(
-                                  ': Sedang aktif / menunggu verifikasi atasan',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          const SizedBox(height: 10),
+                          _buildKetentuanItem(
+                            icon: Icons.date_range_rounded,
+                            title: 'Siklus Tutup Buku Tanggal 24 s/d 23',
+                            desc:
+                                'Rekapitulasi lembur dan saldo bank jam mengikuti siklus dinas tanggal 24 bulan berjalan s/d 23 bulan berikutnya.',
                           ),
-                          const SizedBox(height: 8),
-
-                          // Merah
-                          Row(
-                            children: [
-                              Container(
-                                width: 12,
-                                height: 12,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.error,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              const Text(
-                                'Merah',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.error,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              const Expanded(
-                                child: Text(
-                                  ': Belum absen keluar / pengajuan ditolak',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          const SizedBox(height: 10),
+                          _buildKetentuanItem(
+                            icon: Icons.verified_user_outlined,
+                            title: 'Verifikasi GPS & Kamera Selfie',
+                            desc:
+                                'Seluruh penugasan diverifikasi radius lokasi GPS instansi dan pengambilan foto selfie secara real-time.',
                           ),
                         ],
                       ),
@@ -1443,6 +1070,52 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildKetentuanItem({
+    required IconData icon,
+    required String title,
+    required String desc,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 2),
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: AppColors.primarySoft,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 14, color: AppColors.primary),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                desc,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

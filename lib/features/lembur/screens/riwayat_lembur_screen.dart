@@ -88,6 +88,7 @@ class RiwayatLemburScreen extends ConsumerStatefulWidget {
 
 class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
   int _offsetBulan = 0; // 0 = periode saat ini (24 s/d 23), -1 = periode lalu
+  int _viewMode = 0; // 0 = Periode Cut-Off (24-23), 1 = Semua Riwayat
   int _tabRiwayat = 0; // 0 = Lembur & On-Call, 1 = Pengambilan Jam
   String _filterStatus = 'Semua';
 
@@ -101,6 +102,7 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
     super.initState();
     if (widget.riwayatLemburAwal != null) {
       _riwayatLembur = List.from(widget.riwayatLemburAwal!);
+      _autoDetectPeriodWithData();
     }
     if (widget.riwayatAmbilJamAwal != null) {
       _riwayatAmbilJam = List.from(widget.riwayatAmbilJamAwal!);
@@ -108,11 +110,35 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
     _fetchData();
   }
 
-  Future<void> _fetchData() async {
-    final periode = PeriodeKerja.dariOffset(_offsetBulan);
-    final startStr = DateFormat('yyyy-MM-dd').format(periode.start);
-    final endStr = DateFormat('yyyy-MM-dd').format(periode.end);
+  void _autoDetectPeriodWithData() {
+    if (_riwayatLembur.isEmpty) return;
+    // Cek apakah offset 0 (periode berjalan) memiliki data
+    final periode0 = PeriodeKerja.dariOffset(0);
+    final count0 = _riwayatLembur.where((item) => _isInPeriode(item, periode0)).length;
+    if (count0 > 0) {
+      _offsetBulan = 0;
+      return;
+    }
 
+    // Jika offset 0 kosong, cari periode terdekat yang memiliki data (misal offset -1)
+    for (int off = -1; off >= -12; off--) {
+      final p = PeriodeKerja.dariOffset(off);
+      final count = _riwayatLembur.where((item) => _isInPeriode(item, p)).length;
+      if (count > 0) {
+        _offsetBulan = off;
+        return;
+      }
+    }
+  }
+
+  bool _isInPeriode(dynamic item, PeriodeKerja periode) {
+    final tgl = _parseTanggal(item);
+    if (tgl == null) return false;
+    return !tgl.isBefore(periode.start.subtract(const Duration(seconds: 1))) &&
+        !tgl.isAfter(periode.end.add(const Duration(seconds: 1)));
+  }
+
+  Future<void> _fetchData() async {
     setState(() {
       _loading = true;
       _error = null;
@@ -120,21 +146,15 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
 
     try {
       final api = ref.read(apiServiceProvider);
+      // Panggil tanpa filter start_date/end_date agar seluruh riwayat terambil
+      // dan client-side cut-off bekerja akurat tanpa data terpotong
       final futures = <Future>[
-        api.get('/lembur/riwayat', query: {
-          'start_date': startStr,
-          'end_date': endStr,
-        }),
+        api.get('/lembur/riwayat'),
       ];
 
       final isGantiJam = widget.bankJam?['is_ganti_jam'] == true;
       if (isGantiJam) {
-        futures.add(
-          api.get('/lembur/riwayat-ambil-jam', query: {
-            'start_date': startStr,
-            'end_date': endStr,
-          }),
-        );
+        futures.add(api.get('/lembur/riwayat-ambil-jam'));
       }
 
       final results = await Future.wait(futures);
@@ -144,6 +164,7 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
       final resLembur = results[0];
       if (resLembur['success'] == true) {
         _riwayatLembur = (resLembur['data'] as List?) ?? [];
+        _autoDetectPeriodWithData();
       }
 
       if (isGantiJam && results.length > 1) {
@@ -181,14 +202,17 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
     }
   }
 
-  List<dynamic> _filterList(List<dynamic> list, PeriodeKerja periode) {
+  List<dynamic> _filterList(List<dynamic> list, PeriodeKerja periode,
+      {bool ignorePeriode = false}) {
     return list.where((item) {
-      // 1. Filter Periode Tanggal 24 s/d 23
-      final tgl = _parseTanggal(item);
-      if (tgl != null) {
-        if (tgl.isBefore(periode.start.subtract(const Duration(seconds: 1))) ||
-            tgl.isAfter(periode.end.add(const Duration(seconds: 1)))) {
-          return false;
+      // 1. Filter Periode Tanggal 24 s/d 23 (bila tidak diabaikan)
+      if (!ignorePeriode) {
+        final tgl = _parseTanggal(item);
+        if (tgl != null) {
+          if (tgl.isBefore(periode.start.subtract(const Duration(seconds: 1))) ||
+              tgl.isAfter(periode.end.add(const Duration(seconds: 1)))) {
+            return false;
+          }
         }
       }
 
@@ -209,9 +233,12 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
   Widget build(BuildContext context) {
     final periode = PeriodeKerja.dariOffset(_offsetBulan);
     final isGantiJam = widget.bankJam?['is_ganti_jam'] == true;
+    final isSemuaMode = _viewMode == 1;
 
-    final filteredLembur = _filterList(_riwayatLembur, periode);
-    final filteredAmbil = _filterList(_riwayatAmbilJam, periode);
+    final filteredLembur =
+        _filterList(_riwayatLembur, periode, ignorePeriode: isSemuaMode);
+    final filteredAmbil =
+        _filterList(_riwayatAmbilJam, periode, ignorePeriode: isSemuaMode);
     final activeList = _tabRiwayat == 0 ? filteredLembur : filteredAmbil;
 
     // Kalkulasi total menit periode ini
@@ -232,6 +259,22 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
       }
     }
 
+    // Cari periode alternatif yang ada data jika periode saat ini kosong
+    int? alternateOffsetWithData;
+    int alternateCountWithData = 0;
+    if (!isSemuaMode && filteredLembur.isEmpty && _riwayatLembur.isNotEmpty) {
+      for (int off = -1; off >= -12; off--) {
+        final p = PeriodeKerja.dariOffset(off);
+        final count =
+            _riwayatLembur.where((item) => _isInPeriode(item, p)).length;
+        if (count > 0) {
+          alternateOffsetWithData = off;
+          alternateCountWithData = count;
+          break;
+        }
+      }
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -248,168 +291,314 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
           ),
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 40),
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 120),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ===== 1. SELECTOR PERIODE BULAN KERJA (CUT-OFF 24 - 23) =====
+              // ===== 0. SWITCHER: PERIODE (24-23) VS SEMUA RIWAYAT =====
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Column(
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            setState(() => _offsetBulan -= 1);
-                            _fetchData();
-                          },
-                          icon: const Icon(Icons.chevron_left_rounded, size: 28),
-                          color: AppColors.primary,
-                          tooltip: 'Periode Sebelumnya',
-                        ),
-                        Expanded(
-                          child: Column(
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _viewMode = 0),
+                        borderRadius: BorderRadius.circular(10),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _viewMode == 0 ? Colors.white : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: _viewMode == 0
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.06),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.date_range_rounded,
-                                    size: 15,
-                                    color: AppColors.primary,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Periode Cut-Off (24 – 23)',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                  if (periode.isCurrent) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 1.5,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.successSoft,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: const Text(
-                                        'Berjalan',
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.success,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
+                              Icon(
+                                Icons.calendar_month_rounded,
+                                size: 14,
+                                color: _viewMode == 0
+                                    ? AppColors.primary
+                                    : AppColors.textHint,
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(width: 6),
                               Text(
-                                periode.label,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
+                                'Periode (24–23)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: _viewMode == 0
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  color: _viewMode == 0
+                                      ? AppColors.primary
+                                      : AppColors.textSecondary,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        IconButton(
-                          onPressed: () {
-                            setState(() => _offsetBulan += 1);
-                            _fetchData();
-                          },
-                          icon: const Icon(Icons.chevron_right_rounded, size: 28),
-                          color: AppColors.primary,
-                          tooltip: 'Periode Berikutnya',
-                        ),
-                      ],
+                      ),
                     ),
-
-                    const Divider(height: 18),
-
-                    // Ringkasan Periode Ini dalam Menit
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        Column(
-                          children: [
-                            const Text(
-                              'Total Disetujui',
-                              style: TextStyle(fontSize: 11, color: AppColors.textHint),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '$totalMenitLembur Menit',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primary,
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _viewMode = 1),
+                        borderRadius: BorderRadius.circular(10),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _viewMode == 1 ? Colors.white : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: _viewMode == 1
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.06),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.all_inbox_rounded,
+                                size: 14,
+                                color: _viewMode == 1
+                                    ? const Color(0xFF4F46E5)
+                                    : AppColors.textHint,
                               ),
-                            ),
-                            if (totalMenitLembur >= 60)
+                              const SizedBox(width: 6),
                               Text(
-                                '${totalMenitLembur ~/ 60} jam ${totalMenitLembur % 60 > 0 ? '${totalMenitLembur % 60} m' : ''}',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: AppColors.textHint,
+                                'Semua Riwayat (${_tabRiwayat == 0 ? _riwayatLembur.length : _riwayatAmbilJam.length})',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: _viewMode == 1
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  color: _viewMode == 1
+                                      ? const Color(0xFF4F46E5)
+                                      : AppColors.textSecondary,
                                 ),
                               ),
-                          ],
+                            ],
+                          ),
                         ),
-                        Container(width: 1, height: 28, color: AppColors.border),
-                        Column(
-                          children: [
-                            const Text(
-                              'Pengajuan',
-                              style: TextStyle(fontSize: 11, color: AppColors.textHint),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${filteredLembur.length} Total',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            Text(
-                              '$disetujuiCount acc • $pendingCount pending',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: AppColors.textHint,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 14),
+              // ===== 1. SELECTOR PERIODE BULAN KERJA (CUT-OFF 24 - 23) =====
+              if (_viewMode == 0) ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.02),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              setState(() => _offsetBulan -= 1);
+                            },
+                            icon: const Icon(Icons.chevron_left_rounded, size: 28),
+                            color: AppColors.primary,
+                            tooltip: 'Periode Sebelumnya',
+                          ),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.date_range_rounded,
+                                      size: 15,
+                                      color: AppColors.primary,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Periode Cut-Off (24 – 23)',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    if (periode.isCurrent) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 1.5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.successSoft,
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                        child: const Text(
+                                          'Berjalan',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.success,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  periode.label,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              setState(() => _offsetBulan += 1);
+                            },
+                            icon: const Icon(Icons.chevron_right_rounded, size: 28),
+                            color: AppColors.primary,
+                            tooltip: 'Periode Berikutnya',
+                          ),
+                        ],
+                      ),
+
+                      const Divider(height: 18),
+
+                      // Ringkasan Periode Ini dalam Menit
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Column(
+                            children: [
+                              const Text(
+                                'Total Disetujui',
+                                style: TextStyle(
+                                    fontSize: 11, color: AppColors.textHint),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$totalMenitLembur Menit',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              if (totalMenitLembur >= 60)
+                                Text(
+                                  '${totalMenitLembur ~/ 60} jam ${totalMenitLembur % 60 > 0 ? '${totalMenitLembur % 60} m' : ''}',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.textHint,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          Container(
+                              width: 1, height: 28, color: AppColors.border),
+                          Column(
+                            children: [
+                              const Text(
+                                'Pengajuan',
+                                style: TextStyle(
+                                    fontSize: 11, color: AppColors.textHint),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${filteredLembur.length} Total',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                '$disetujuiCount acc • $pendingCount pending',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.textHint,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ] else ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4F46E5).withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(16),
+                    border:
+                        Border.all(color: const Color(0xFF4F46E5).withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline_rounded,
+                          color: Color(0xFF4F46E5), size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Menampilkan seluruh data tanpa batasan cut-off (${activeList.length} pengajuan ditemukan).',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF4F46E5),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
 
               // ===== 2. TAB LEMBUR VS PENGAMBILAN JAM (JIKA UNIT GANTI JAM) =====
               if (isGantiJam) ...[
@@ -487,7 +676,8 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: ['Semua', 'Pending', 'Disetujui', 'Ditolak'].map((s) {
+                  children:
+                      ['Semua', 'Pending', 'Disetujui', 'Ditolak'].map((s) {
                     final isSelected = _filterStatus == s;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
@@ -498,13 +688,16 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
                         labelStyle: TextStyle(
                           fontWeight:
                               isSelected ? FontWeight.bold : FontWeight.normal,
-                          color: isSelected ? Colors.white : AppColors.textSecondary,
+                          color:
+                              isSelected ? Colors.white : AppColors.textSecondary,
                         ),
                         backgroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                           side: BorderSide(
-                            color: isSelected ? AppColors.primary : AppColors.border,
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.border,
                           ),
                         ),
                         onSelected: (_) => setState(() => _filterStatus = s),
@@ -540,20 +733,23 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
                       Text(
                         _error!,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12, color: AppColors.error),
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.error),
                       ),
                       const SizedBox(height: 10),
                       TextButton.icon(
                         onPressed: _fetchData,
                         icon: const Icon(Icons.refresh, size: 16),
-                        label: const Text('Coba Lagi', style: TextStyle(fontSize: 12)),
+                        label: const Text('Coba Lagi',
+                            style: TextStyle(fontSize: 12)),
                       ),
                     ],
                   ),
                 )
               else if (activeList.isEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(18),
@@ -566,17 +762,51 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
                         size: 48,
                         color: AppColors.textHint.withOpacity(0.5),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       Text(
-                        _filterStatus == 'Semua'
-                            ? 'Tidak ada riwayat pada periode kerja ini\n(${periode.label}).'
-                            : 'Tidak ada pengajuan berstatus "$_filterStatus" pada periode ini.',
+                        isSemuaMode
+                            ? (_filterStatus == 'Semua'
+                                ? 'Belum ada data pengajuan sama sekali.'
+                                : 'Tidak ada pengajuan berstatus "$_filterStatus".')
+                            : (_filterStatus == 'Semua'
+                                ? 'Tidak ada riwayat pada periode kerja ini\n(${periode.label}).'
+                                : 'Tidak ada pengajuan berstatus "$_filterStatus" pada periode ini.'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 13,
                           color: AppColors.textSecondary,
                         ),
                       ),
+                      if (!isSemuaMode && alternateOffsetWithData != null) ...[
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            setState(
+                                () => _offsetBulan = alternateOffsetWithData!);
+                          },
+                          icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                          label: Text(
+                            'Buka Periode ${PeriodeKerja.dariOffset(alternateOffsetWithData).namaBulan} ($alternateCountWithData Data)',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () => setState(() => _viewMode = 1),
+                          child: const Text(
+                            'Tampilkan Semua Riwayat (Tanpa Batasan Cut-Off)',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 )
@@ -631,10 +861,14 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
     final String selesai = _fmtWaktu(item['waktu_selesai']?.toString());
 
     // Selalu hitung durasi dalam menit
-    final int durasiMenit = item['durasi_menit'] ??
-        ((double.tryParse(item['total_jam']?.toString() ?? '') ?? 0) * 60)
-            .round();
-    final String durasiTeks = '$durasiMenit Menit';
+    final int durasiMenit = item['total_menit'] is int
+        ? item['total_menit'] as int
+        : (item['durasi_menit'] is int
+            ? item['durasi_menit'] as int
+            : ((double.tryParse(item['total_jam']?.toString() ?? '') ?? 0) * 60).round());
+    final String durasiTeks = durasiMenit > 0
+        ? '$durasiMenit Menit${durasiMenit >= 60 ? ' (${durasiMenit ~/ 60}j ${durasiMenit % 60}m)' : ''}'
+        : (item['total_jam'] != null ? '${item['total_jam']} jam' : '-');
 
     final String keterangan = item['keterangan']?.toString() ?? '-';
     final String? catatan = item['catatan_validasi']?.toString();
@@ -873,8 +1107,12 @@ class _RiwayatLemburScreenState extends ConsumerState<RiwayatLemburScreen> {
 
     final bool isMasukLambat = item['tipe_pengambilan'] == 'masuk_diperlambat';
     final String tanggal = item['tanggal']?.toString() ?? '-';
-    final int durasiMenit = item['durasi_menit'] ?? 0;
-    final String durasiTeks = '$durasiMenit Menit';
+    final int durasiMenit = item['durasi_menit'] is int
+        ? item['durasi_menit'] as int
+        : (int.tryParse(item['durasi_menit']?.toString() ?? '') ?? 0);
+    final String durasiTeks = durasiMenit > 0
+        ? '$durasiMenit Menit${durasiMenit >= 60 ? ' (${durasiMenit ~/ 60}j ${durasiMenit % 60}m)' : ''}'
+        : (item['durasi_teks']?.toString() ?? '-');
     final String keterangan = item['keterangan']?.toString() ?? '-';
     final String? catatan = item['catatan_validasi']?.toString();
 

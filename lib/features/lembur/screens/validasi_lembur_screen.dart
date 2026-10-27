@@ -319,7 +319,7 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
                             onRefresh: _fetch,
                             child: ListView.builder(
                               padding:
-                                  const EdgeInsets.fromLTRB(16, 16, 16, 90),
+                                  const EdgeInsets.fromLTRB(16, 16, 16, 130),
                               itemCount: _items.length,
                               itemBuilder: (ctx, i) {
                                 final it = _items[i] as Map;
@@ -487,9 +487,19 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
             _fmt(it['waktu_selesai']?.toString()),
           ),
           _infoRow(
-            Icons.timer,
+            Icons.timer_outlined,
             'Durasi',
-            '${it['total_jam'] ?? '-'} jam',
+            () {
+              final int menit = it['total_menit'] is int
+                  ? it['total_menit'] as int
+                  : (it['durasi_menit'] is int
+                      ? it['durasi_menit'] as int
+                      : ((double.tryParse(it['total_jam']?.toString() ?? '') ?? 0) * 60).round());
+              if (menit > 0) {
+                return '$menit Menit${menit >= 60 ? ' (${menit ~/ 60} jam ${menit % 60 > 0 ? '${menit % 60} mnt' : ''})' : ''}';
+              }
+              return it['total_jam'] != null ? '${it['total_jam']} jam' : '-';
+            }(),
           ),
           _infoRow(
             Icons.notes,
@@ -627,7 +637,15 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
           _infoRow(
             Icons.hourglass_top,
             'Durasi Ambil',
-            it['durasi_teks']?.toString() ?? '${it['durasi_menit']} menit',
+            () {
+              final int menit = it['durasi_menit'] is int
+                  ? it['durasi_menit'] as int
+                  : (int.tryParse(it['durasi_menit']?.toString() ?? '') ?? 0);
+              if (menit > 0) {
+                return '$menit Menit${menit >= 60 ? ' (${menit ~/ 60} jam ${menit % 60 > 0 ? '${menit % 60} mnt' : ''})' : ''}';
+              }
+              return it['durasi_teks']?.toString() ?? '${it['durasi_menit']} menit';
+            }(),
           ),
           _infoRow(
             Icons.category,

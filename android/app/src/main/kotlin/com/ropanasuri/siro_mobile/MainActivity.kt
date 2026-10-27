@@ -104,9 +104,10 @@ class MainActivity : FlutterActivity() {
                 for (pkg in FAKE_GPS_PACKAGES) {
                     try {
                         val packageInfo = pm.getPackageInfo(pkg, 0)
+                        val appInfo = packageInfo.applicationInfo ?: continue
                         val mode = appOps.checkOpNoThrow(
                             AppOpsManager.OPSTR_MOCK_LOCATION,
-                            packageInfo.applicationInfo.uid,
+                            appInfo.uid,
                             pkg
                         )
                         if (mode == AppOpsManager.MODE_ALLOWED) {
