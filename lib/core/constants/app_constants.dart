@@ -2,7 +2,7 @@ class AppConstants {
   AppConstants._();
 
   // API
-  static const String baseUrl = 'https://absensi.ropanasuri.com/api';
+  static const String baseUrl = 'https://(Isi Alamat URL Website Absensi)';
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
 
