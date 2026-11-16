@@ -32,6 +32,12 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
   DateTime? _locStartedAt;
   dynamic _locResult;
 
+  int? _selectedShiftId;
+  String? _selectedShiftNama;
+  String? _defaultShiftNama;
+  bool _hasRosterToday = false;
+  List<Map<String, dynamic>> _availableShifts = [];
+
   bool get isMasuk => widget.type == 'masuk';
   bool get isLuarJadwal => widget.mode == 'luar_jadwal'; // ✅ NEW
 
@@ -41,6 +47,42 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
     WidgetsBinding.instance.addObserver(this);
     _initCamera();
     _startLocationPreValidation();
+    if (isMasuk) {
+      _loadShiftInfo();
+    }
+  }
+
+  Future<void> _loadShiftInfo() async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final res = await api.get('/absensi/info-shift');
+      if (res['success'] == true && mounted) {
+        final data = res['data'] as Map<String, dynamic>?;
+        if (data != null) {
+          final shiftsRaw = data['available_shifts'];
+          final List<Map<String, dynamic>> list = [];
+          if (shiftsRaw is List) {
+            for (final item in shiftsRaw) {
+              if (item is Map) {
+                list.add(Map<String, dynamic>.from(item));
+              }
+            }
+          }
+          final rosterAda = data['roster_ada'] == true;
+          String? defaultNama;
+          if (rosterAda && data['nama_shift'] != null) {
+            final jm = data['jam_masuk'] ?? '';
+            final jp = data['jam_pulang'] ?? '';
+            defaultNama = '${data["nama_shift"]} ($jm - $jp)';
+          }
+          setState(() {
+            _availableShifts = list;
+            _hasRosterToday = rosterAda;
+            _defaultShiftNama = defaultNama;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -129,15 +171,20 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
       final api = ref.read(apiServiceProvider);
       final endpoint = isMasuk ? '/absensi/masuk' : '/absensi/pulang';
 
+      final fields = <String, String>{
+        'latitude': loc.latitude.toString(),
+        'longitude': loc.longitude.toString(),
+        'accuracy': loc.accuracy?.toString() ?? '',
+        'is_mock': loc.isMocked ? '1' : '0',
+        'mode': widget.mode, // ✅ kirim mode
+      };
+      if (_selectedShiftId != null) {
+        fields['shift_id'] = _selectedShiftId.toString();
+      }
+
       final response = await api.postMultipart(
         endpoint,
-        fields: {
-          'latitude': loc.latitude.toString(),
-          'longitude': loc.longitude.toString(),
-          'accuracy': loc.accuracy?.toString() ?? '',
-          'is_mock': loc.isMocked ? '1' : '0',
-          'mode': widget.mode, // ✅ kirim mode
-        },
+        fields: fields,
         files: {'foto': compressed},
       );
 
@@ -325,6 +372,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
     final data = response['data'] as Map<String, dynamic>?;
     final jenisAbsen = data?['jenis_absen'] as String?;
     final isLuar = jenisAbsen == 'luar_jadwal';
+    final isPerubahanJadwal = data?['is_perubahan_jadwal'] == true;
 
     showDialog(
       context: context,
@@ -343,6 +391,44 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // ✅ Badge perubahan jadwal
+            if (isPerubahanJadwal) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.secondary.withOpacity(0.3),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.published_with_changes_rounded,
+                      color: AppColors.secondary,
+                      size: 16,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'PERUBAHAN JADWAL',
+                      style: TextStyle(
+                        color: AppColors.secondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
             // ✅ NEW: Badge luar jadwal
             if (isLuar) ...[
               Container(
@@ -439,6 +525,156 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
     );
   }
 
+  void _showShiftPicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Pilih Shift Kedatangan',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Pilih shift dinas sesuai jadwal aktual Anda hari ini:',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    ListTile(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: _selectedShiftId == null
+                              ? AppColors.primary
+                              : Colors.grey.shade200,
+                          width: _selectedShiftId == null ? 1.5 : 1,
+                        ),
+                      ),
+                      leading: Icon(
+                        Icons.auto_awesome_rounded,
+                        color: _selectedShiftId == null
+                            ? AppColors.primary
+                            : AppColors.textHint,
+                      ),
+                      title: const Text(
+                        'Otomatis / Sesuai Roster',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        _defaultShiftNama != null
+                            ? 'Default: $_defaultShiftNama'
+                            : 'Sistem deteksi otomatis jam kedatangan',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: _selectedShiftId == null
+                          ? const Icon(
+                              Icons.check_circle,
+                              color: AppColors.primary,
+                            )
+                          : null,
+                      onTap: () {
+                        setState(() {
+                          _selectedShiftId = null;
+                          _selectedShiftNama = null;
+                        });
+                        Navigator.pop(ctx);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    ..._availableShifts.map((s) {
+                      final id = s['id'] as int?;
+                      final nama = s['nama_shift']?.toString() ?? '';
+                      final masuk = s['jam_masuk']?.toString() ?? '';
+                      final pulang = s['jam_pulang']?.toString() ?? '';
+                      final label = '$nama ($masuk - $pulang)';
+                      final isSelected = _selectedShiftId == id;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : Colors.grey.shade200,
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          tileColor: isSelected
+                              ? AppColors.primary.withOpacity(0.04)
+                              : null,
+                          leading: Icon(
+                            Icons.schedule_rounded,
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.textHint,
+                          ),
+                          title: Text(
+                            nama,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '$masuk - $pulang',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          trailing: isSelected
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: AppColors.primary,
+                                )
+                              : null,
+                          onTap: () {
+                            setState(() {
+                              _selectedShiftId = id;
+                              _selectedShiftNama = label;
+                            });
+                            Navigator.pop(ctx);
+                          },
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -460,7 +696,11 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
                 fit: StackFit.expand,
                 children: [
                   _cameraReady
-                      ? CameraPreview(_cameraService.controller!)
+                      ? Transform(
+                          alignment: Alignment.center,
+                          transform: Matrix4.rotationY(3.1415926535897932),
+                          child: CameraPreview(_cameraService.controller!),
+                        )
                       : const Center(
                           child: CircularProgressIndicator(color: Colors.white),
                         ),
@@ -658,6 +898,99 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
                               ),
                             ),
                           ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // ✅ Info Shift Masuk & Opsi Tukar Shift (Hanya saat Absen Masuk)
+                  if (isMasuk) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.schedule_rounded,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _selectedShiftNama ??
+                                      (_defaultShiftNama ??
+                                          'Otomatis Sesuai Waktu Datang'),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _selectedShiftId != null
+                                      ? 'Shift Ditukar Manual'
+                                      : (_hasRosterToday
+                                          ? 'Jadwal Roster Hari Ini'
+                                          : 'Deteksi Otomatis'),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: _selectedShiftId != null
+                                        ? AppColors.warning
+                                        : AppColors.textHint,
+                                    fontWeight: _selectedShiftId != null
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (_availableShifts.isNotEmpty)
+                            TextButton.icon(
+                              onPressed: _showShiftPicker,
+                              icon: const Icon(
+                                Icons.swap_horiz_rounded,
+                                size: 16,
+                              ),
+                              label: const Text(
+                                'Tukar Shift',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                backgroundColor:
+                                    AppColors.primary.withOpacity(0.08),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),

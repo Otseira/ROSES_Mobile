@@ -228,7 +228,31 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
+            Text(
+              'ROSES v1.0.0 • RSKB Ropanasuri',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.copyright, size: 12, color: Colors.grey.shade400),
+                const SizedBox(width: 4),
+                Text(
+                  '${DateTime.now().year} Luthfi Ariesto Prayoga & Teddi Takejo Saogok',
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade400, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'IT RSKB ROPANASURI',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 9, color: Colors.grey.shade400, letterSpacing: 0.8, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

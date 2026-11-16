@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -164,9 +163,13 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // ✅ Preview kamera atau loading/error
+                  // ✅ Preview kamera (mirror horizontal agar gerak kanan = kanan)
                   if (_ready && _camera.controller != null)
-                    CameraPreview(_camera.controller!)
+                    Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.rotationY(3.1415926535897932),
+                      child: CameraPreview(_camera.controller!),
+                    )
                   else if (_error != null)
                     Center(
                       child: Padding(

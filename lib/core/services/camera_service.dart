@@ -9,11 +9,14 @@ import 'package:image/image.dart' as img;
 class CameraService {
   CameraController? _controller;
   bool _initialized = false;
+  bool _isFront = true;
 
   CameraController? get controller => _controller;
   bool get isInitialized => _initialized;
+  bool get isFrontCamera => _isFront;
 
   Future<void> init({bool frontCamera = true}) async {
+    _isFront = frontCamera;
     final cameras = await availableCameras();
     if (cameras.isEmpty) throw Exception('Kamera tidak tersedia.');
 
@@ -56,23 +59,23 @@ class CameraService {
     final file = File(xFile.path);
 
     // ✅ FIX: Proses gambar di background isolate (mencegah ANR di Android 9)
-    final processed = await _processInBackground(file);
+    final processed = await _processInBackground(file, isFront: _isFront);
     return processed;
   }
 
   /// ✅ BARU: Jalankan image processing di background isolate
   ///    Ini mencegah main thread membeku → mencegah ANR & force close
-  Future<File> _processInBackground(File file) async {
+  Future<File> _processInBackground(File file, {bool isFront = true}) async {
     try {
       final tempDir = await getTemporaryDirectory();
       final now = DateTime.now();
       final outPath = p.join(
         tempDir.path,
-        'siro_${now.millisecondsSinceEpoch}.jpg',
+        'roses_${now.millisecondsSinceEpoch}.jpg',
       );
 
       final result = await Isolate.run(() {
-        return _processImage(file.path, outPath, now);
+        return _processImage(file.path, outPath, now, isFront);
       });
 
       // Bersihkan file capture mentah awal setelah berhasil diproses
@@ -94,6 +97,7 @@ class CameraService {
     String inputPath,
     String outputPath,
     DateTime now,
+    bool isFront,
   ) {
     try {
       final bytes = File(inputPath).readAsBytesSync();
@@ -106,9 +110,14 @@ class CameraService {
         image = img.copyResize(image, width: 1280);
       }
 
+      // Mirror horizontal untuk kamera depan agar hasil foto sama persis seperti preview di layar
+      if (isFront) {
+        image = img.flipHorizontal(image);
+      }
+
       // Watermark
       final text =
-          'SIRO | ${now.day}/${now.month}/${now.year} ${now.hour}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+          'ROSES | ${now.day}/${now.month}/${now.year} ${now.hour}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
       img.drawString(
         image,
         text,

@@ -210,7 +210,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 // ✅ Footer dinamis (nama instansi ikut cache branding)
                 Text(
-                  'SIRO v1.0.0 • $_footerInstansi',
+                  'ROSES v1.0.0 • $_footerInstansi',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
                 ),
