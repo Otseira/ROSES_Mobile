@@ -47,7 +47,7 @@ class CameraService {
   }
 
   /// Satu-satunya cara mendapat foto: capture dari kamera
-  Future<File> capture() async {
+  Future<File> capture({bool mirror = false}) async {
     if (_controller == null || !_controller!.value.isInitialized) {
       throw Exception('Kamera belum siap.');
     }
@@ -59,13 +59,13 @@ class CameraService {
     final file = File(xFile.path);
 
     // ✅ FIX: Proses gambar di background isolate (mencegah ANR di Android 9)
-    final processed = await _processInBackground(file, isFront: _isFront);
+    final processed = await _processInBackground(file, mirror: mirror);
     return processed;
   }
 
   /// ✅ BARU: Jalankan image processing di background isolate
   ///    Ini mencegah main thread membeku → mencegah ANR & force close
-  Future<File> _processInBackground(File file, {bool isFront = true}) async {
+  Future<File> _processInBackground(File file, {bool mirror = false}) async {
     try {
       final tempDir = await getTemporaryDirectory();
       final now = DateTime.now();
@@ -75,7 +75,7 @@ class CameraService {
       );
 
       final result = await Isolate.run(() {
-        return _processImage(file.path, outPath, now, isFront);
+        return _processImage(file.path, outPath, now, mirror);
       });
 
       // Bersihkan file capture mentah awal setelah berhasil diproses
@@ -97,7 +97,7 @@ class CameraService {
     String inputPath,
     String outputPath,
     DateTime now,
-    bool isFront,
+    bool mirror,
   ) {
     try {
       final bytes = File(inputPath).readAsBytesSync();
@@ -110,8 +110,8 @@ class CameraService {
         image = img.copyResize(image, width: 1280);
       }
 
-      // Mirror horizontal untuk kamera depan agar hasil foto sama persis seperti preview di layar
-      if (isFront) {
+      // Flip horizontal hanya jika opsi cermin diaktifkan (default: false agar gerakan searah)
+      if (mirror) {
         image = img.flipHorizontal(image);
       }
 

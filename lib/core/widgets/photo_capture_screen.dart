@@ -18,6 +18,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
   final _camera = CameraService();
   bool _ready = false;
   bool _busy = false;
+  bool _isMirrored = false;
   String? _error;
 
   @override
@@ -132,7 +133,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
       _error = null;
     });
     try {
-      final file = await _camera.capture();
+      final file = await _camera.capture(mirror: _isMirrored);
       final compressed = await ImageCompressor.compressFile(file);
       if (mounted) Navigator.pop(context, compressed);
     } catch (e) {
@@ -163,13 +164,15 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // ✅ Preview kamera (mirror horizontal agar gerak kanan = kanan)
+                  // Preview kamera (bisa toggle mirror, default false agar gerakan searah)
                   if (_ready && _camera.controller != null)
-                    Transform(
-                      alignment: Alignment.center,
-                      transform: Matrix4.rotationY(3.1415926535897932),
-                      child: CameraPreview(_camera.controller!),
-                    )
+                    _isMirrored
+                        ? Transform(
+                            alignment: Alignment.center,
+                            transform: Matrix4.rotationY(3.1415926535897932),
+                            child: CameraPreview(_camera.controller!),
+                          )
+                        : CameraPreview(_camera.controller!)
                   else if (_error != null)
                     Center(
                       child: Padding(
@@ -241,6 +244,38 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
                               Icons.arrow_back,
                               color: Colors.white,
                               size: 20,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() => _isMirrored = !_isMirrored);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isMirrored ? Icons.flip_camera_android : Icons.sync_alt,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _isMirrored ? 'Cermin: Aktif' : 'Cermin: Nonaktif',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),

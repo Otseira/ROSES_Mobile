@@ -1380,6 +1380,7 @@ class _CameraPage extends StatefulWidget {
 class _CameraPageState extends State<_CameraPage> {
   final _camera = CameraService();
   bool _ready = false;
+  bool _isMirrored = false;
   String? _error;
 
   @override
@@ -1415,11 +1416,13 @@ class _CameraPageState extends State<_CameraPage> {
                 fit: StackFit.expand,
                 children: [
                   if (_ready && _camera.controller != null)
-                    Transform(
-                      alignment: Alignment.center,
-                      transform: Matrix4.rotationY(3.1415926535897932),
-                      child: CameraPreview(_camera.controller!),
-                    )
+                    _isMirrored
+                        ? Transform(
+                            alignment: Alignment.center,
+                            transform: Matrix4.rotationY(3.1415926535897932),
+                            child: CameraPreview(_camera.controller!),
+                          )
+                        : CameraPreview(_camera.controller!)
                   else if (_error != null)
                     Center(
                       child: Text(_error!, style: const TextStyle(color: Colors.white)),
@@ -1429,9 +1432,46 @@ class _CameraPageState extends State<_CameraPage> {
                   Positioned(
                     top: 16,
                     left: 16,
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
+                    right: 16,
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() => _isMirrored = !_isMirrored);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isMirrored ? Icons.flip_camera_android : Icons.sync_alt,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _isMirrored ? 'Cermin: Aktif' : 'Cermin: Nonaktif',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1447,7 +1487,7 @@ class _CameraPageState extends State<_CameraPage> {
                       ? null
                       : () async {
                           try {
-                            final f = await _camera.capture();
+                            final f = await _camera.capture(mirror: _isMirrored);
                             if (mounted) Navigator.pop(context, f);
                           } catch (_) {}
                         },

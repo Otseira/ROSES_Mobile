@@ -24,6 +24,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
   final _locationService = LocationService();
 
   bool _cameraReady = false;
+  bool _isMirrored = false;
   bool _processing = false;
   String? _error;
   String _status = '';
@@ -147,7 +148,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
     });
 
     try {
-      final photo = await _cameraService.capture();
+      final photo = await _cameraService.capture(mirror: _isMirrored);
 
       if (mounted) setState(() => _status = 'Mengoptimalkan foto…');
       final compressed = await _compressFoto(photo.path);
@@ -696,11 +697,13 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
                 fit: StackFit.expand,
                 children: [
                   _cameraReady
-                      ? Transform(
-                          alignment: Alignment.center,
-                          transform: Matrix4.rotationY(3.1415926535897932),
-                          child: CameraPreview(_cameraService.controller!),
-                        )
+                      ? (_isMirrored
+                          ? Transform(
+                              alignment: Alignment.center,
+                              transform: Matrix4.rotationY(3.1415926535897932),
+                              child: CameraPreview(_cameraService.controller!),
+                            )
+                          : CameraPreview(_cameraService.controller!))
                       : const Center(
                           child: CircularProgressIndicator(color: Colors.white),
                         ),
@@ -725,6 +728,38 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
                               Icons.arrow_back,
                               color: Colors.white,
                               size: 20,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() => _isMirrored = !_isMirrored);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isMirrored ? Icons.flip_camera_android : Icons.sync_alt,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _isMirrored ? 'Cermin: Aktif' : 'Cermin: Nonaktif',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
