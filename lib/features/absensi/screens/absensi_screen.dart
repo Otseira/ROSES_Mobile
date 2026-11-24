@@ -696,14 +696,13 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _cameraReady
-                      ? (_isMirrored
-                          ? Transform(
-                              alignment: Alignment.center,
-                              transform: Matrix4.rotationY(3.1415926535897932),
-                              child: CameraPreview(_cameraService.controller!),
-                            )
-                          : CameraPreview(_cameraService.controller!))
+                  _cameraReady && _cameraService.controller != null
+                      ? LayoutBuilder(
+                          builder: (context, constraints) => _cameraService.buildPreview(
+                            constraints: constraints,
+                            isMirrored: _isMirrored,
+                          ),
+                        )
                       : const Center(
                           child: CircularProgressIndicator(color: Colors.white),
                         ),
@@ -811,31 +810,11 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
                     ),
                   ),
 
-                  // Face guide circle
-                  Center(
-                    child: Container(
-                      width: 220,
-                      height: 220,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isLuarJadwal
-                              ? AppColors.warning.withOpacity(0.7)
-                              : Colors.white.withOpacity(0.5),
-                          width: 2,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          'Posisikan wajah\ndi dalam lingkaran',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
+                  // Panduan Wajah Oval Proporsional (Seragam dengan SIRO)
+                  CameraService.buildFaceGuideOverlay(
+                    borderColor: isLuarJadwal
+                        ? AppColors.warning.withOpacity(0.85)
+                        : const Color(0xFF34D399).withOpacity(0.85),
                   ),
 
                   // Loading overlay

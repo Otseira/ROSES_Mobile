@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:isolate';
+import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -39,11 +40,115 @@ class CameraService {
     try {
       await _controller!.initialize();
       _initialized = true;
+
+      // ✅ Pastikan zoom kamera diatur ke nilai minimum (wide FOV)
+      //    agar tidak ngezoom saat selfie presensi
+      try {
+        final minZoom = await _controller!.getMinZoomLevel();
+        await _controller!.setZoomLevel(minZoom);
+      } catch (_) {}
     } on CameraException catch (e) {
       _initialized = false;
       dispose();
       throw Exception('Gagal inisialisasi kamera: ${e.description}');
     }
+  }
+
+  /// Widget preview kamera yang otomatis mengisi kontainer (BoxFit.cover),
+  /// mempertahankan aspek rasio native tanpa distorsi/gepeng,
+  /// menghilangkan bilah hitam (letterboxing), dan mendukung toggle mirror.
+  Widget buildPreview({
+    required BoxConstraints constraints,
+    bool isMirrored = false,
+  }) {
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return const SizedBox.shrink();
+    }
+
+    final previewSize = _controller!.value.previewSize;
+    if (previewSize == null) {
+      return CameraPreview(_controller!);
+    }
+
+    // Kamera smartphone mengembalikan previewSize dalam orientasi sensor landscape (misal width 1280, height 720).
+    // Pada orientasi portrait HP, rasio aspek vertikal adalah height / width.
+    final isLandscape = constraints.maxWidth > constraints.maxHeight;
+    final previewRatio = isLandscape
+        ? previewSize.width / previewSize.height
+        : previewSize.height / previewSize.width;
+
+    final containerRatio = constraints.maxWidth / constraints.maxHeight;
+
+    // Skala agar mengisi seluruh area kontainer (object-cover) tanpa distorsi
+    double scale;
+    if (containerRatio > previewRatio) {
+      scale = containerRatio / previewRatio;
+    } else {
+      scale = previewRatio / containerRatio;
+    }
+
+    Widget preview = CameraPreview(_controller!);
+    if (isMirrored) {
+      preview = Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.rotationY(3.1415926535897932),
+        child: preview,
+      );
+    }
+
+    return ClipRect(
+      child: Center(
+        child: Transform.scale(
+          scale: scale,
+          child: AspectRatio(
+            aspectRatio: previewRatio,
+            child: preview,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Overlay panduan wajah oval seragam (proporsional & elegan mengikuti UI SIRO)
+  static Widget buildFaceGuideOverlay({
+    Color? borderColor,
+    String text = 'Posisikan Wajah',
+  }) {
+    return IgnorePointer(
+      child: Center(
+        child: Container(
+          width: 210,
+          height: 275,
+          decoration: BoxDecoration(
+            borderRadius: const BorderRadius.all(Radius.elliptical(210, 275)),
+            border: Border.all(
+              color: borderColor ?? const Color(0xFF34D399).withOpacity(0.85), // emerald-400
+              width: 2.2,
+            ),
+          ),
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.55),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   /// Satu-satunya cara mendapat foto: capture dari kamera

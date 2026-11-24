@@ -87,10 +87,11 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
   void _showDetailModal(Map item) {
     final tgl = item['tanggal'] ?? '-';
     final hari = item['hari_nama'] ?? '';
+    final hasJadwal = item['has_jadwal'] == true;
     final isLibur = item['is_libur'] == true && item['sesi2'] == null;
-    final shiftNama = item['nama_shift'] ?? (isLibur ? 'Libur (OFF)' : '-');
-    final jamMasuk = item['jam_masuk'] ?? '-';
-    final jamPulang = item['jam_pulang'] ?? '-';
+    final shiftNama = item['nama_shift'] ?? (isLibur ? 'Libur (OFF)' : (hasJadwal ? '-' : 'Belum Ada Jadwal'));
+    final jamMasuk = item['jam_masuk'] ?? (hasJadwal ? '-' : 'Belum Diinput');
+    final jamPulang = item['jam_pulang'] ?? (hasJadwal ? '-' : 'Belum Diinput');
     final absenMasuk = item['absen_masuk'];
     final absenPulang = item['absen_pulang'];
     final terlambatMenit = (item['terlambat_menit'] as int?) ?? 0;
@@ -183,10 +184,10 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
                         if (!isLibur) ...[
                           const SizedBox(height: 2),
                           Text(
-                            'Jadwal: $jamMasuk - $jamPulang',
-                            style: const TextStyle(
+                            hasJadwal ? 'Jadwal: $jamMasuk - $jamPulang' : 'Jadwal dinas belum di-input',
+                            style: TextStyle(
                               fontSize: 12,
-                              color: Color(0xFF065F46),
+                              color: hasJadwal ? const Color(0xFF065F46) : const Color(0xFF64748B),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -198,15 +199,17 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: terlambatMenit > 0 ? const Color(0xFFFFE4E6) : const Color(0xFFD1FAE5),
+                        color: (hasJadwal && terlambatMenit > 0) ? const Color(0xFFFFE4E6) : const Color(0xFFD1FAE5),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        terlambatMenit > 0 ? 'Terlambat +$terlambatMenit m' : 'Tepat Waktu',
+                        !hasJadwal
+                            ? 'Belum Ada Jadwal'
+                            : (terlambatMenit > 0 ? 'Terlambat +$terlambatMenit m' : 'Tepat Waktu'),
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: terlambatMenit > 0 ? const Color(0xFFBE123C) : const Color(0xFF047857),
+                          color: (hasJadwal && terlambatMenit > 0) ? const Color(0xFFBE123C) : const Color(0xFF047857),
                         ),
                       ),
                     ),
@@ -779,10 +782,14 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
 
   Widget _jadwalCell(Map? d, String key) {
     if (d == null) return _gridCell('-', fg: AppColors.textHint);
+    final hasJadwal = d['has_jadwal'] == true;
+    if (!hasJadwal && d['absen_masuk'] != null) {
+      return _gridCell('Belum Diinput', fg: AppColors.textHint);
+    }
     if (d['is_libur'] == true && d['sesi2'] == null) return _liburCell();
 
     final s2 = d['sesi2'] as Map?;
-    final v1 = (d[key] ?? '-').toString();
+    final v1 = (d[key] ?? (hasJadwal ? '-' : 'Belum Diinput')).toString();
     final v2 = s2?[key]?.toString();
 
     if (v2 != null) {
@@ -795,18 +802,19 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
         subBold: true,
       );
     }
-    return _gridCell(v1);
+    return _gridCell(v1, fg: hasJadwal ? AppColors.textPrimary : AppColors.textHint);
   }
 
   Widget _absenMasukCell(Map? d) {
     if (d == null) return _gridCell('-', fg: AppColors.textHint);
-    if (d['is_libur'] == true && d['sesi2'] == null) {
+    final v1 = d['absen_masuk'];
+    if (v1 == null && d['is_libur'] == true && d['sesi2'] == null) {
       return _gridCell('-', fg: AppColors.textHint);
     }
 
     final s2 = d['sesi2'] as Map?;
-    final v1 = d['absen_masuk'];
-    final t1 = (d['terlambat_menit'] as int?) ?? 0;
+    final hasJadwal = d['has_jadwal'] == true;
+    final t1 = hasJadwal ? ((d['terlambat_menit'] as int?) ?? 0) : 0;
 
     Color? bg1;
     if (v1 != null) bg1 = t1 > 0 ? _cTelat : _cTepat;
@@ -836,12 +844,12 @@ class _JadwalDinasScreenState extends ConsumerState<JadwalDinasScreen> {
 
   Widget _absenPulangCell(Map? d) {
     if (d == null) return _gridCell('-', fg: AppColors.textHint);
-    if (d['is_libur'] == true && d['sesi2'] == null) {
+    final v1 = d['absen_pulang'];
+    if (v1 == null && d['is_libur'] == true && d['sesi2'] == null) {
       return _gridCell('-', fg: AppColors.textHint);
     }
 
     final s2 = d['sesi2'] as Map?;
-    final v1 = d['absen_pulang'];
     final s1 = d['pulang_cepat_menit'] as int? ?? 0;
 
     Color? bg1;

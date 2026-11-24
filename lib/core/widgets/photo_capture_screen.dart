@@ -166,13 +166,12 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
                 children: [
                   // Preview kamera (bisa toggle mirror, default false agar gerakan searah)
                   if (_ready && _camera.controller != null)
-                    _isMirrored
-                        ? Transform(
-                            alignment: Alignment.center,
-                            transform: Matrix4.rotationY(3.1415926535897932),
-                            child: CameraPreview(_camera.controller!),
-                          )
-                        : CameraPreview(_camera.controller!)
+                    LayoutBuilder(
+                      builder: (context, constraints) => _camera.buildPreview(
+                        constraints: constraints,
+                        isMirrored: _isMirrored,
+                      ),
+                    )
                   else if (_error != null)
                     Center(
                       child: Padding(
@@ -302,21 +301,9 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
                     ),
                   ),
 
-                  // Face guide circle
+                  // Panduan Wajah Oval Proporsional (Seragam dengan SIRO)
                   if (_ready)
-                    Center(
-                      child: Container(
-                        width: 220,
-                        height: 220,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.5),
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
+                    CameraService.buildFaceGuideOverlay(),
                 ],
               ),
             ),

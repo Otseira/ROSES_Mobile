@@ -128,10 +128,20 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
     }
   }
 
-  void _openMap(double? lat, double? lng) {
+  void _openMap({dynamic lat, dynamic lng, String? mapUrl}) {
+    if (mapUrl != null && mapUrl.isNotEmpty) {
+      launchUrl(
+        Uri.parse(mapUrl),
+        mode: LaunchMode.externalApplication,
+      );
+      return;
+    }
     if (lat == null || lng == null) return;
+    final latNum = lat is num ? lat.toDouble() : double.tryParse(lat.toString());
+    final lngNum = lng is num ? lng.toDouble() : double.tryParse(lng.toString());
+    if (latNum == null || lngNum == null) return;
     launchUrl(
-      Uri.parse('https://www.google.com/maps?q=$lat,$lng'),
+      Uri.parse('https://www.google.com/maps?q=$latNum,$lngNum'),
       mode: LaunchMode.externalApplication,
     );
   }
@@ -438,6 +448,8 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
     final tgl = it['tanggal_lembur'] ?? it['tanggal'] ?? '-';
     final mulai = it['waktu_mulai'] ?? '-';
     final selesai = it['waktu_selesai'] ?? '-';
+    final durasi = it['durasi_detail'] ?? it['durasi_teks'] ?? '${it['durasi_menit'] ?? 0} Menit';
+    final jarak = it['jarak_teks'] ?? (it['jarak_meter'] != null ? '${it['jarak_meter']} meter dari RS' : null);
 
     Color statusBg = const Color(0xFFFEF3C7);
     Color statusFg = const Color(0xFFB45309);
@@ -514,6 +526,32 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
           ),
           const SizedBox(height: 10),
 
+          // Durasi Detail Badge (Berapa menit lalu dalam kurung berapa jamnya)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFECFDF5),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFA7F3D0)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.timer_outlined, size: 14, color: Color(0xFF047857)),
+                const SizedBox(width: 6),
+                Text(
+                  durasi.toString(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF065F46),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
           // Box Keterangan / Alasan
           Container(
             width: double.infinity,
@@ -523,13 +561,28 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFF1F5F9)),
             ),
-            child: Text(
-              alasan.toString(),
-              style: const TextStyle(
-                fontSize: 11,
-                color: Color(0xFF334155),
-                height: 1.3,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'ALASAN / TUGAS LEMBUR:',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF94A3B8),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  alasan.toString(),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF334155),
+                    height: 1.3,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 10),
@@ -553,8 +606,78 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
             ],
           ),
 
-          // Foto bukti & Peta jika ada
-          if (it['foto_masuk_url'] != null || it['lat_masuk'] != null) ...[
+          // Info Peta & Jarak dari RS
+          if (jarak != null || it['lat_masuk'] != null || it['latitude_masuk'] != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_on, size: 15, color: Color(0xFFE11D48)),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            jarak?.toString() ?? 'Lokasi GPS Tercatat',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF334155),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => _openMap(
+                      mapUrl: it['map_url']?.toString(),
+                      lat: it['lat_masuk'] ?? it['latitude_masuk'] ?? it['lat_keluar'] ?? it['latitude_keluar'],
+                      lng: it['lng_masuk'] ?? it['longitude_masuk'] ?? it['lng_keluar'] ?? it['longitude_keluar'],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.map_outlined, size: 12, color: Color(0xFF2563EB)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Buka Peta',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Foto bukti jika ada
+          if (it['foto_masuk_url'] != null || it['foto_keluar_url'] != null) ...[
             const SizedBox(height: 10),
             Row(
               children: [
@@ -563,17 +686,6 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
                 if (it['foto_keluar_url'] != null) ...[
                   const SizedBox(width: 8),
                   _thumb(it['foto_keluar_url'].toString(), 'Bukti Keluar'),
-                ],
-                if (it['lat_masuk'] != null || it['lat_keluar'] != null) ...[
-                  const SizedBox(width: 8),
-                  ActionChip(
-                    avatar: const Icon(Icons.map, size: 14),
-                    label: const Text('Peta', style: TextStyle(fontSize: 10)),
-                    onPressed: () => _openMap(
-                      (it['lat_masuk'] ?? it['lat_keluar'])?.toDouble(),
-                      (it['lng_masuk'] ?? it['lng_keluar'])?.toDouble(),
-                    ),
-                  ),
                 ],
               ],
             ),
@@ -637,7 +749,7 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
   }) {
     final status = it['status_validasi'] ?? _status;
     final namaPegawai = it['pegawai_nama'] ?? it['nama_pegawai'] ?? '-';
-    final durasi = it['durasi_teks'] ?? '${it["durasi_menit"]} Menit';
+    final durasi = it['durasi_detail'] ?? it['durasi_teks'] ?? '${it["durasi_menit"]} Menit';
     final alasan = it['alasan'] ?? 'Tanpa keterangan';
     final tglRencana = it['tanggal_rencana'] ?? '-';
 

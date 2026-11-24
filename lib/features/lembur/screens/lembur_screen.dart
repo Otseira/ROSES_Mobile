@@ -231,15 +231,15 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
       if (res['success'] == true) shiftInfo = res['data'];
     } catch (_) {}
 
-    if (shiftInfo == null) {
-      _snack('Anda tidak memiliki jadwal shift hari ini. Gunakan On-Call.');
+    if (shiftInfo == null || shiftInfo['jam_masuk'] == null) {
+      _snack('Anda belum melakukan absensi masuk dinas hari ini.');
       return;
     }
-    final int maxMenit = (shiftInfo['max_menit'] as int?) ?? 0;
-    if (maxMenit < 30) {
-      _snack(
-        'Ekstensi shift baru dapat diajukan minimal 30 menit setelah jam pulang (${shiftInfo['jam_pulang']}).',
-      );
+    final bool bisaEkstensi = (shiftInfo['bisa_ekstensi'] as bool?) ?? false;
+    if (!bisaEkstensi) {
+      final pesan = shiftInfo['pesan'] as String? ??
+          'Lembur baru dapat diajukan setelah berdinas minimal 6 jam 40 menit (mulai pukul ${shiftInfo['jam_ambang_lembur'] ?? shiftInfo['jam_pulang']} WIB).';
+      _snack(pesan);
       return;
     }
 
@@ -1416,19 +1416,22 @@ class _CameraPageState extends State<_CameraPage> {
                 fit: StackFit.expand,
                 children: [
                   if (_ready && _camera.controller != null)
-                    _isMirrored
-                        ? Transform(
-                            alignment: Alignment.center,
-                            transform: Matrix4.rotationY(3.1415926535897932),
-                            child: CameraPreview(_camera.controller!),
-                          )
-                        : CameraPreview(_camera.controller!)
+                    LayoutBuilder(
+                      builder: (context, constraints) => _camera.buildPreview(
+                        constraints: constraints,
+                        isMirrored: _isMirrored,
+                      ),
+                    )
                   else if (_error != null)
                     Center(
                       child: Text(_error!, style: const TextStyle(color: Colors.white)),
                     )
                   else
                     const Center(child: CircularProgressIndicator(color: Colors.white)),
+
+                  // Panduan Wajah Oval Proporsional (Seragam dengan SIRO)
+                  if (_ready)
+                    CameraService.buildFaceGuideOverlay(),
                   Positioned(
                     top: 16,
                     left: 16,
@@ -1511,34 +1514,181 @@ class _EkstensiFormDialog extends StatefulWidget {
 
 class _EkstensiFormDialogState extends State<_EkstensiFormDialog> {
   final _ctrl = TextEditingController();
+  final _manualCtrl = TextEditingController();
+  String _mode = 'otomatis'; // 'otomatis' | 'preset' | 'manual'
   int _durasi = 60;
 
   @override
+  void initState() {
+    super.initState();
+    final durasiOto = (widget.shiftInfo['durasi_otomatis_menit'] as int?) ?? 60;
+    _durasi = durasiOto > 0 ? durasiOto : 60;
+    _manualCtrl.text = _durasi.toString();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _manualCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final maxMenit = (widget.shiftInfo['max_menit'] as int?) ?? 180;
+    final maxMenit = (widget.shiftInfo['max_menit'] as int?) ?? 240;
+    final durasiOtoMenit = (widget.shiftInfo['durasi_otomatis_menit'] as int?) ?? _durasi;
+    final durasiOtoTeks = widget.shiftInfo['durasi_otomatis_teks']?.toString() ??
+        '$durasiOtoMenit Menit (${durasiOtoMenit ~/ 60} Jam ${durasiOtoMenit % 60} Menit)';
+    final jamMasuk = widget.shiftInfo['jam_masuk']?.toString() ?? '-';
+    final jamAmbang = widget.shiftInfo['jam_ambang_lembur']?.toString() ?? widget.shiftInfo['jam_pulang']?.toString() ?? '-';
+
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Ajukan Ekstensi Shift', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: const Row(
+        children: [
+          Icon(Icons.more_time_rounded, color: Color(0xFF10B981)),
+          SizedBox(width: 8),
+          Text(
+            'Ajukan Lembur',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+        ],
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Pilih Durasi Lembur:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              children: [30, 60, 90, 120, 180].where((d) => d <= maxMenit).map((d) {
-                final isSel = _durasi == d;
-                return ChoiceChip(
-                  label: Text('$d Menit', style: const TextStyle(fontSize: 11)),
-                  selected: isSel,
-                  selectedColor: AppColors.primarySoft,
-                  onSelected: (_) => setState(() => _durasi = d),
-                );
-              }).toList(),
+            // Status Dinas 6j 40m
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFA7F3D0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Jam Masuk Dinas:',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF065F46)),
+                      ),
+                      Text(
+                        '$jamMasuk WIB',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF065F46)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Dinas Reguler (6j 40m):',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF065F46)),
+                      ),
+                      Text(
+                        's/d $jamAmbang WIB',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
+
+            // Segmented Mode Selector: Otomatis | Pilihan | Manual
+            const Text(
+              'Metode Durasi Lembur:',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  _modeButton('otomatis', '⚡ Otomatis', durasiOtoMenit),
+                  _modeButton('preset', '📋 Pilihan', 60),
+                  _modeButton('manual', '✏️ Manual', _durasi),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Tampilan per Mode
+            if (_mode == 'otomatis') ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF86EFAC)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'DURASI TERHITUNG OTOMATIS:',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF15803D)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$durasiOtoMenit Menit ($durasiOtoTeks)',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Color(0xFF14532D)),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Dihitung dari selesai dinas 6 jam 40 menit ($jamAmbang WIB) s/d sekarang.',
+                      style: const TextStyle(fontSize: 10, color: Color(0xFF475569)),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (_mode == 'preset') ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [30, 60, 90, 120, 180, 240].map((d) {
+                  final isSel = _durasi == d;
+                  final jamStr = d >= 60 ? ' (${d ~/ 60}j${d % 60 > 0 ? ' ' + (d % 60).toString() + 'm' : ''})' : '';
+                  return ChoiceChip(
+                    label: Text('$d Menit$jamStr', style: const TextStyle(fontSize: 11)),
+                    selected: isSel,
+                    selectedColor: AppColors.primarySoft,
+                    onSelected: (_) => setState(() => _durasi = d),
+                  );
+                }).toList(),
+              ),
+            ] else ...[
+              TextField(
+                controller: _manualCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Durasi Lembur (Menit)',
+                  hintText: 'Contoh: 45, 75, 100',
+                  suffixText: 'Menit',
+                  helperText: _durasi > 0
+                      ? '= ${_durasi ~/ 60} Jam ${_durasi % 60 > 0 ? '' + (_durasi % 60).toString() + ' Menit' : ''}'
+                      : null,
+                ),
+                onChanged: (val) {
+                  final parsed = int.tryParse(val) ?? 0;
+                  setState(() => _durasi = parsed);
+                },
+              ),
+            ],
+
+            const SizedBox(height: 14),
             TextField(
               controller: _ctrl,
               decoration: const InputDecoration(
@@ -1555,11 +1705,63 @@ class _EkstensiFormDialogState extends State<_EkstensiFormDialog> {
         ElevatedButton(
           onPressed: () {
             if (_ctrl.text.trim().isEmpty) return;
+            if (_durasi < 15) return;
             Navigator.pop(context, {'durasi': _durasi, 'keterangan': _ctrl.text.trim()});
           },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF10B981),
+            foregroundColor: Colors.white,
+          ),
           child: const Text('Lanjut'),
         ),
       ],
+    );
+  }
+
+  Widget _modeButton(String modeKey, String label, int defaultMenit) {
+    final isSelected = _mode == modeKey;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _mode = modeKey;
+            if (modeKey == 'otomatis') {
+              final durasiOto = (widget.shiftInfo['durasi_otomatis_menit'] as int?) ?? defaultMenit;
+              _durasi = durasiOto > 0 ? durasiOto : 60;
+            } else if (modeKey == 'preset') {
+              _durasi = 60;
+            } else {
+              _durasi = int.tryParse(_manualCtrl.text) ?? 60;
+            }
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    )
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                color: isSelected ? const Color(0xFF047857) : const Color(0xFF64748B),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
