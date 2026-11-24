@@ -225,16 +225,43 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
     if (_processing) return;
 
     Map<String, dynamic>? shiftInfo;
+    String? errMessage;
     try {
       final api = ref.read(apiServiceProvider);
       final res = await api.get('/absensi/info-shift');
-      if (res['success'] == true) shiftInfo = res['data'];
-    } catch (_) {}
+      if (res['success'] == true) {
+        shiftInfo = res['data'];
+      } else {
+        errMessage = res['message']?.toString();
+      }
+    } catch (e) {
+      try {
+        final api = ref.read(apiServiceProvider);
+        final res = await api.get('/lembur/info-shift');
+        if (res['success'] == true) {
+          shiftInfo = res['data'];
+        } else {
+          errMessage = res['message']?.toString();
+        }
+      } catch (e2) {
+        errMessage = e2.toString().replaceAll('Exception: ', '').trim();
+      }
+    }
 
-    if (shiftInfo == null || shiftInfo['jam_masuk'] == null) {
-      _snack('Anda belum melakukan absensi masuk dinas hari ini.');
+    if (shiftInfo == null) {
+      _snack(errMessage?.isNotEmpty == true
+          ? errMessage!
+          : 'Gagal memuat informasi jadwal dinas. Periksa koneksi internet Anda.');
       return;
     }
+
+    if (shiftInfo['jam_masuk'] == null) {
+      final pesan = shiftInfo['pesan']?.toString() ??
+          'Anda belum melakukan absensi masuk dinas dan belum memiliki jadwal dinas hari ini.';
+      _snack(pesan);
+      return;
+    }
+
     final bool bisaEkstensi = (shiftInfo['bisa_ekstensi'] as bool?) ?? false;
     if (!bisaEkstensi) {
       final pesan = shiftInfo['pesan'] as String? ??
