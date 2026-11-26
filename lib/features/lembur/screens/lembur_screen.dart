@@ -311,8 +311,11 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
       } else {
         _snack(res['message'] ?? 'Gagal menyimpan lembur.');
       }
-    } catch (_) {
-      if (mounted) _snack('Gagal terhubung ke server.');
+    } catch (e) {
+      if (mounted) {
+        final msg = e.toString().replaceAll('Exception: ', '').trim();
+        _snack(msg.isNotEmpty ? msg : 'Gagal terhubung ke server.');
+      }
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -361,8 +364,11 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
       } else {
         _snack(res['message'] ?? 'Gagal memulai On-Call.');
       }
-    } catch (_) {
-      if (mounted) _snack('Gagal terhubung ke server.');
+    } catch (e) {
+      if (mounted) {
+        final msg = e.toString().replaceAll('Exception: ', '').trim();
+        _snack(msg.isNotEmpty ? msg : 'Gagal terhubung ke server.');
+      }
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -446,8 +452,11 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
       } else {
         _snack(res['message'] ?? 'Gagal menyelesaikan On-Call.');
       }
-    } catch (_) {
-      if (mounted) _snack('Gagal terhubung ke server.');
+    } catch (e) {
+      if (mounted) {
+        final msg = e.toString().replaceAll('Exception: ', '').trim();
+        _snack(msg.isNotEmpty ? msg : 'Gagal terhubung ke server.');
+      }
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -586,18 +595,42 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
       return;
     }
 
-    final res = await showDialog<bool>(
+    final saldoTeks = _bankJam?['saldo_tersedia_teks']?.toString() ??
+        _bankJam?['saldo_jam_teks']?.toString() ??
+        '$saldoTersedia Menit';
+
+    final form = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
       builder: (_) => _PengambilanJamDialog(
         saldoTersediaMenit: saldoTersedia,
-        saldoTersediaTeks: '$saldoTersedia Menit',
+        saldoTersediaTeks: saldoTeks,
       ),
     );
 
-    if (res == true && mounted) {
-      _refreshAll();
-      _snack('Pengajuan pengambilan waktu lembur berhasil dikirim.');
+    if (form == null || !mounted) return;
+
+    setState(() => _processing = true);
+    try {
+      final api = ref.read(apiServiceProvider);
+      final res = await api.post('/lembur/ambil-jam', data: form);
+      if (!mounted) return;
+      if (res['success'] == true) {
+        _refreshAll();
+        _snack(
+          res['message']?.toString() ??
+              'Pengajuan pengambilan waktu lembur berhasil dikirim.',
+        );
+      } else {
+        _snack(res['message']?.toString() ?? 'Gagal mengajukan pengambilan jam.');
+      }
+    } catch (e) {
+      if (mounted) {
+        final msg = e.toString().replaceAll('Exception: ', '').trim();
+        _snack(msg.isNotEmpty ? msg : 'Gagal mengirim pengajuan.');
+      }
+    } finally {
+      if (mounted) setState(() => _processing = false);
     }
   }
 
@@ -1062,7 +1095,9 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                             const SizedBox(height: 4),
                             Text(
                               _bankJam != null
-                                  ? (_bankJam!['saldo_jam_teks'] ?? '${_bankJam!['saldo_menit_tersedia'] ?? 0} Menit')
+                                  ? (_bankJam!['saldo_tersedia_teks'] ??
+                                      _bankJam!['saldo_jam_teks'] ??
+                                      '${_bankJam!['saldo_menit_tersedia'] ?? 0} Menit')
                                   : '0 Jam 0 Menit',
                               style: const TextStyle(
                                 fontSize: 28,
@@ -1087,7 +1122,8 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                                       const SizedBox(height: 2),
                                       Text(
                                         _bankJam != null
-                                            ? (_bankJam!['total_lembur_disetujui_teks'] ?? '0 Jam')
+                                            ? (_bankJam!['total_lembur_disetujui_teks'] ??
+                                                '${(_bankJam!['total_menit_diperoleh'] ?? 0)} Menit')
                                             : '0 Jam',
                                         style: const TextStyle(
                                           fontSize: 13,
@@ -1110,7 +1146,8 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                                       const SizedBox(height: 2),
                                       Text(
                                         _bankJam != null
-                                            ? (_bankJam!['total_pengambilan_teks'] ?? '0 Jam')
+                                            ? (_bankJam!['total_pengambilan_teks'] ??
+                                                '${(_bankJam!['total_menit_digunakan'] ?? 0)} Menit')
                                             : '0 Jam',
                                         style: const TextStyle(
                                           fontSize: 13,
@@ -1196,8 +1233,8 @@ class _LemburScreenState extends ConsumerState<LemburScreen> {
                                   final it = _riwayatAmbilJam[i] as Map;
                                   final durasi = it['durasi_teks'] ?? '${it["durasi_menit"]} Menit';
                                   final status = it['status_validasi'] ?? it['status'] ?? 'Pending';
-                                  final alasan = it['alasan'] ?? '-';
-                                  final tgl = it['tanggal_rencana'] ?? '-';
+                                  final alasan = it['alasan'] ?? it['keterangan'] ?? '-';
+                                  final tgl = it['tanggal_rencana'] ?? it['tanggal'] ?? '-';
 
                                   Color statusBg = const Color(0xFFFEF3C7);
                                   Color statusFg = const Color(0xFFB45309);
@@ -1839,11 +1876,32 @@ class _PengambilanJamDialog extends StatefulWidget {
 
 class _PengambilanJamDialogState extends State<_PengambilanJamDialog> {
   final _alasanCtrl = TextEditingController();
+  late final TextEditingController _menitCtrl;
   int _menit = 60;
+  String _tipe = 'pulang_dipercepat';
   DateTime _tgl = DateTime.now();
 
   @override
+  void initState() {
+    super.initState();
+    _menit = widget.saldoTersediaMenit >= 60 ? 60 : widget.saldoTersediaMenit;
+    if (_menit < 15) _menit = 15;
+    _menitCtrl = TextEditingController(text: _menit.toString());
+  }
+
+  @override
+  void dispose() {
+    _alasanCtrl.dispose();
+    _menitCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final tglFmt = DateFormat('yyyy-MM-dd').format(_tgl);
+    final tglTampil = DateFormat('dd MMM yyyy', 'id_ID').format(_tgl);
+    final maxAllowed = widget.saldoTersediaMenit > 480 ? 480 : widget.saldoTersediaMenit;
+
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: const Text('Pengambilan Saldo Jam', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -1854,19 +1912,88 @@ class _PengambilanJamDialogState extends State<_PengambilanJamDialog> {
           children: [
             Text('Saldo Tersedia: ${widget.saldoTersediaTeks}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
             const SizedBox(height: 12),
+            const Text('Tanggal Rencana Dinas', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            InkWell(
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _tgl,
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 90)),
+                );
+                if (picked != null) setState(() => _tgl = picked);
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(tglTampil, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    const Icon(Icons.calendar_today, size: 16, color: AppColors.primary),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text('Jenis Pengambilan', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            DropdownButtonFormField<String>(
+              value: _tipe,
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'pulang_dipercepat', child: Text('Jam Pulang Dipercepat', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(value: 'masuk_diperlambat', child: Text('Jam Masuk Diperlambat', style: TextStyle(fontSize: 13))),
+              ],
+              onChanged: (v) {
+                if (v != null) setState(() => _tipe = v);
+              },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _menitCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Durasi (Menit, min 15, maks $maxAllowed)',
+                suffixText: 'Menit',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onChanged: (val) {
+                setState(() => _menit = int.tryParse(val) ?? 0);
+              },
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: _alasanCtrl,
-              decoration: const InputDecoration(labelText: 'Keperluan / Alasan'),
+              maxLines: 2,
+              decoration: InputDecoration(
+                labelText: 'Keperluan / Alasan',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
         ElevatedButton(
-          onPressed: () async {
+          onPressed: () {
             if (_alasanCtrl.text.trim().isEmpty) return;
-            Navigator.pop(context, true);
+            if (_menit < 15 || _menit > maxAllowed) return;
+            Navigator.pop(context, {
+              'tanggal_dinas': tglFmt,
+              'tipe_pengambilan': _tipe,
+              'durasi_menit': _menit,
+              'keterangan': _alasanCtrl.text.trim(),
+            });
           },
           child: const Text('Kirim Pengajuan'),
         ),

@@ -59,7 +59,9 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
         setState(() => _error = res['message']?.toString());
       }
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(() => _error = e.toString().replaceAll('Exception: ', '').trim());
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -105,7 +107,7 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = e.toString();
+          _error = e.toString().replaceAll('Exception: ', '').trim();
         });
       }
     }
@@ -750,8 +752,8 @@ class _ValidasiLemburScreenState extends ConsumerState<ValidasiLemburScreen> {
     final status = it['status_validasi'] ?? _status;
     final namaPegawai = it['pegawai_nama'] ?? it['nama_pegawai'] ?? '-';
     final durasi = it['durasi_detail'] ?? it['durasi_teks'] ?? '${it["durasi_menit"]} Menit';
-    final alasan = it['alasan'] ?? 'Tanpa keterangan';
-    final tglRencana = it['tanggal_rencana'] ?? '-';
+    final alasan = it['alasan'] ?? it['keterangan'] ?? 'Tanpa keterangan';
+    final tglRencana = it['tanggal_rencana'] ?? it['tanggal'] ?? '-';
 
     Color statusBg = const Color(0xFFFEF3C7);
     Color statusFg = const Color(0xFFB45309);

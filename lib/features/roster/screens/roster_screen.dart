@@ -117,12 +117,32 @@ class _RosterScreenState extends ConsumerState<RosterScreen> {
         }
       }
 
+      if (!handled && data['staf'] is List) {
+        // Format /roster/unit: { bulan, tahun, master_shifts: [...], staf: [{ nama, jadwal: [...] }] }
+        for (final emp in (data['staf'] as List)) {
+          if (emp is Map && emp['jadwal'] is List) {
+            final empNama = emp['nama']?.toString();
+            for (final j in (emp['jadwal'] as List)) {
+              if (j is Map) {
+                final merged = Map<String, dynamic>.from(j);
+                if (empNama != null && merged['nama_pegawai'] == null) {
+                  merged['nama_pegawai'] = empNama;
+                }
+                addFromMap(merged);
+              }
+            }
+          }
+        }
+        handled = true;
+      }
+
       if (!handled) {
         // 2) Group per tanggal: { "2026-07-23": {...} } atau { "2026-07-23": [ {...} ] }
         //    → key luar dipakai sebagai tanggal bila item tak punya tanggal sendiri.
         for (final entry in data.entries) {
           final v = entry.value;
           final keyStr = entry.key.toString();
+          if (keyStr == 'master_shifts' || keyStr == 'bulan' || keyStr == 'tahun') continue;
           if (v is List) {
             addFromList(v, keyStr);
           } else if (v is Map) {

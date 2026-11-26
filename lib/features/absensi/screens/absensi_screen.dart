@@ -219,7 +219,7 @@ class _AbsensiScreenState extends ConsumerState<AbsensiScreen>
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = e.toString().replaceAll('Exception: ', '').trim();
           _processing = false;
           _status = '';
         });

@@ -110,7 +110,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         if (todayEntry != null) {
           final m = todayEntry['absen_masuk']?.toString().trim();
           final p = todayEntry['absen_pulang']?.toString().trim();
-          final shift = todayEntry['shift_nama']?.toString().trim();
+          final shift = (todayEntry['shift_nama'] ?? todayEntry['nama_shift'])?.toString().trim();
 
           setState(() {
             _isMasukDone = m != null && m.isNotEmpty && m != '-' && m != 'null';
@@ -120,7 +120,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             _pulangTime = _isPulangDone ? p : null;
 
             _shiftNama = (shift != null && shift.isNotEmpty && shift != '-') ? shift : _shiftNama;
-            _statusKehadiran = todayEntry['status_kehadiran']?.toString();
+            final hasJadwal = todayEntry['has_jadwal'] == true;
+            final telat = (todayEntry['terlambat_menit'] as num?)?.toInt() ?? 0;
+            _statusKehadiran = todayEntry['status_kehadiran']?.toString() ??
+                (_isMasukDone
+                    ? (!hasJadwal
+                        ? 'Tanpa Jadwal'
+                        : (telat > 0 ? 'Terlambat' : 'Tepat Waktu'))
+                    : _statusKehadiran);
           });
         }
       }
